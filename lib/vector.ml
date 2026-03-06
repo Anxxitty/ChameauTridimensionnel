@@ -30,6 +30,50 @@ type ('a, 'b) matrix = Matrix4 of (('a, 'b) kind * 'a matrix4)
 
 type ('a, 'b) matrixKind = Matrix4Kind of ('a, 'b) kind
 
+let (+:) (vector1 : int vector) (vector2 : int vector) = match vector1 with
+  | Vector1 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector1 { x = vec1.x + vec2.x }
+    | Vector2 vec2 -> Vector2 { x = vec1.x + vec2.x ; y = vec2.y }
+    | Vector3 vec2 -> Vector3 { x = vec1.x + vec2.x ; y = vec2.y ; z = vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x + vec2.r ; g = vec2.g ; b = vec2.b ; a = vec2.a })
+  | Vector2 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector2 { x = vec1.x + vec2.x ; y = vec1.y }
+    | Vector2 vec2 -> Vector2 { x = vec1.x + vec2.x ; y = vec1.y + vec2.y }
+    | Vector3 vec2 -> Vector3 { x = vec1.x + vec2.x ; y = vec1.y + vec2.y ; z = vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x + vec2.r ; g = vec1.y + vec2.g ; b = vec2.b ; a = vec2.a })
+  | Vector3 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector3 { x = vec1.x + vec2.x ; y = vec1.y ; z = vec1.z }
+    | Vector2 vec2 -> Vector3 { x = vec1.x + vec2.x ; y = vec1.y + vec2.y ; z = vec1.z }
+    | Vector3 vec2 -> Vector3 { x = vec1.x + vec2.x ; y = vec1.y + vec2.y ; z = vec1.z + vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x + vec2.r ; g = vec1.y + vec2.g ; b = vec1.z + vec2.b ; a = vec2.a })
+  | Vector4 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector4 { r = vec1.r + vec2.x ; g = vec1.g ; b = vec1.b ; a = vec1.a }
+    | Vector2 vec2 -> Vector4 { r = vec1.r + vec2.x ; g = vec1.g + vec2.y ; b = vec1.b; a = vec1.a }
+    | Vector3 vec2 -> Vector4 { r = vec1.r + vec2.x ; g = vec1.g + vec2.y ; b = vec1.b + vec2.z ; a = vec1.a }
+    | Vector4 vec2 -> Vector4 { r = vec1.r + vec2.r ; g = vec1.g + vec2.g ; b = vec1.b + vec2.b ; a = vec1.a + vec2.a })
+
+let (+:.) (vector1 : float vector) (vector2 : float vector) = match vector1 with
+  | Vector1 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector1 { x = vec1.x +. vec2.x }
+    | Vector2 vec2 -> Vector2 { x = vec1.x +. vec2.x ; y = vec2.y }
+    | Vector3 vec2 -> Vector3 { x = vec1.x +. vec2.x ; y = vec2.y ; z = vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x +. vec2.r ; g = vec2.g ; b = vec2.b ; a = vec2.a })
+  | Vector2 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector2 { x = vec1.x +. vec2.x ; y = vec1.y }
+    | Vector2 vec2 -> Vector2 { x = vec1.x +. vec2.x ; y = vec1.y +. vec2.y }
+    | Vector3 vec2 -> Vector3 { x = vec1.x +. vec2.x ; y = vec1.y +. vec2.y ; z = vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x +. vec2.r ; g = vec1.y +. vec2.g ; b = vec2.b ; a = vec2.a })
+  | Vector3 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector3 { x = vec1.x +. vec2.x ; y = vec1.y ; z = vec1.z }
+    | Vector2 vec2 -> Vector3 { x = vec1.x +. vec2.x ; y = vec1.y +. vec2.y ; z = vec1.z }
+    | Vector3 vec2 -> Vector3 { x = vec1.x +. vec2.x ; y = vec1.y +. vec2.y ; z = vec1.z +. vec2.z }
+    | Vector4 vec2 -> Vector4 { r = vec1.x +. vec2.r ; g = vec1.y +. vec2.g ; b = vec1.z +. vec2.b ; a = vec2.a })
+  | Vector4 vec1 -> (match vector2 with
+    | Vector1 vec2 -> Vector4 { r = vec1.r +. vec2.x ; g = vec1.g ; b = vec1.b ; a = vec1.a }
+    | Vector2 vec2 -> Vector4 { r = vec1.r +. vec2.x ; g = vec1.g +. vec2.y ; b = vec1.b; a = vec1.a }
+    | Vector3 vec2 -> Vector4 { r = vec1.r +. vec2.x ; g = vec1.g +. vec2.y ; b = vec1.b +. vec2.z ; a = vec1.a }
+    | Vector4 vec2 -> Vector4 { r = vec1.r +. vec2.r ; g = vec1.g +. vec2.g ; b = vec1.b +. vec2.b ; a = vec1.a +. vec2.a })
+
 let createBigarray kind k n = Array1.create kind C_layout (k*n)
 
 (*Returns the first int of the Bigarray returned by func*)
@@ -70,3 +114,4 @@ let bigarrayOfMatrix4f ((a, b, c, d) : float matrix4) =
   setVector4 bigarray 2 c.r c.g c.b c.a;
   setVector4 bigarray 3 d.r d.g d.b d.a;
   bigarray
+

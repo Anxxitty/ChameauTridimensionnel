@@ -43,8 +43,8 @@ let render ~window ~vao ~numberOfVertices ~(shaderProgram : Shader.shaderProgram
     {r=(cos theta); g=0.0; b=(-.(sin theta)); a=0.0},
     {r=0.0;         g=0.0; b=0.0;             a=1.0}) in
   Gl.bind_vertex_array vao;
-  shaderProgram#setUniformMatrix4f ~name:"rotationMatrix1" ~value:rotationMatrix1;
-  shaderProgram#setUniformMatrix4f ~name:"rotationMatrix2" ~value:rotationMatrix2;
+  shaderProgram#setUniform (MatrixUniform4f ("rotationMatrix1", rotationMatrix1));
+  shaderProgram#setUniform (MatrixUniform4f ("rotationMatrix2", rotationMatrix2));
   shaderProgram#use ();
   Gl.draw_arrays Gl.triangles 0 numberOfVertices
   
@@ -68,17 +68,12 @@ let () =
   let positionsVertexAttrib = new vertexAttribute ~attributeType:(Vector3Kind Float32) ~numberOfVertices:3 ~vectorList:positions () in
   let colorsVertexAttrib = new vertexAttribute ~attributeType:(Vector4Kind Float32) ~numberOfVertices:3 ~vectorList:colors () in
 
-  let vbo2 = new buffer ~bufferType:Gl.array_buffer in
-  vbo2#writeVertexAttributes ~vertexAttributes:[positionsVertexAttrib; colorsVertexAttrib] ~usage:Gl.static_draw;
+  let ebo2 = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int8_unsigned in
+  ebo2#writeElementBuffer ~indices:[0;1;2] ~usage:Gl.static_draw;
 
-  let vao2 = getFirstInt (Gl.gen_vertex_arrays 1) in
-  Gl.bind_vertex_array vao2;
-  Gl.vertex_attrib_pointer 0 positionsVertexAttrib#getDimension Gl.float false (7*kind_size_in_bytes Float32) Gl.(`Offset 0);
-  Gl.enable_vertex_attrib_array 0;
-  Gl.vertex_attrib_pointer 1 colorsVertexAttrib#getDimension Gl.float false (7*kind_size_in_bytes Float32) Gl.(`Offset (3*kind_size_in_bytes Float32));
-  Gl.enable_vertex_attrib_array 1;
+  let vao2 = new vertexArray ~kind:Float32 ~vertexAttributes:[positionsVertexAttrib; colorsVertexAttrib] ~elementBuffer:ebo2 ~drawingType:Gl.static_draw in
 
-  let vertexData = createBigarray Float32 7 12 in
+  (*let vertexData = createBigarray Float32 7 12 in
   setVector7 vertexData 0 (-0.5)  (0.0)   0.5    1.0   0.0   0.0    1.0;
   setVector7 vertexData 1   0.0    0.0  (-0.5)   0.0   1.0   0.0    1.0;
   setVector7 vertexData 2   0.0    1.0    0.0    0.0   0.0   1.0    1.0;
@@ -99,9 +94,9 @@ let () =
   Gl.vertex_attrib_pointer 0 3 Gl.float false (7*kind_size_in_bytes Float32) Gl.(`Offset 0);
   Gl.enable_vertex_attrib_array 0;
   Gl.vertex_attrib_pointer 1 4 Gl.float false (7*kind_size_in_bytes Float32) Gl.(`Offset (3*kind_size_in_bytes Float32));
-  Gl.enable_vertex_attrib_array 1;
+  Gl.enable_vertex_attrib_array 1;*)
 
-  let vertexShader = new Shader.shader ~shaderType:Gl.vertex_shader ~shaderSourcePath:"assets/shaders/vertex.glsl" in
+  let vertexShader = new Shader.shader ~shaderType:Gl.vertex_shader ~shaderSourcePath:"assets/shaders/simple_debug_vertex.glsl" in
   let fragmentShader = new Shader.shader ~shaderType:Gl.fragment_shader ~shaderSourcePath:"assets/shaders/fragment.glsl" in
   let shaderProgram = new Shader.shaderProgram ~vertexShader ~fragmentShader in
 
@@ -123,24 +118,26 @@ let () =
     { r=0.0      ; g=0.0 ;      b=(-1.020202)  ; a = (-1.0)},
     { r=0.0      ; g=0.0 ;      b=(-20.202021) ; a = 0.0   }) in
 
-  shaderProgram#setUniformMatrix4f ~name:"translationMatrix" ~value:translationMatrix;
+  (*shaderProgram#setUniformMatrix4f ~name:"translationMatrix" ~value:translationMatrix;
   shaderProgram#setUniformMatrix4f ~name:"scaleMatrix" ~value:scaleMatrix;
-  shaderProgram#setUniformMatrix4f ~name:"projectionMatrix" ~value:projectionMatrix;
+  shaderProgram#setUniformMatrix4f ~name:"projectionMatrix" ~value:projectionMatrix;*)
+
+  let object2 = new drawable ~vertexArray:vao2 ~shaderProgram ~numberOfDrawnVertices:3 ~sceneCoordinates:{x=0.0;y=0.0;z=0.0} ~localRotation:{x=0.0;y=0.0;z=0.0} ~scale:{x=1.0;y=1.0;z=1.0} in
 
   (*Main loop*)
   let rec loop () =
     Gl.clear Gl.color_buffer_bit;
     Gl.clear Gl.depth_buffer_bit;
     processInput ~window;
-    render ~window ~vao ~numberOfVertices:12 ~shaderProgram;
-    render ~window ~vao:vao2 ~numberOfVertices:3 ~shaderProgram;
+    (*render ~window ~vao ~numberOfVertices:12 ~shaderProgram;*)
+    object2#render ~window ~uniforms:[MatrixUniform4f ("translationMatrix", translationMatrix);MatrixUniform4f ("scaleMatrix", scaleMatrix);MatrixUniform4f ("projectionMatrix", projectionMatrix); VectorUniform1f ("time", { x= GLFW.getTime()}) ];
     GLFW.swapBuffers ~window;
     GLFW.pollEvents ();
     if GLFW.windowShouldClose ~window
     then (
-      shaderProgram#deleteProgram ();
-      Gl.delete_buffers 1 (setFirstInt vbo);
-      Gl.delete_vertex_arrays 1 (setFirstInt vao);
+      shaderProgram#delete ();
+      (*Gl.delete_buffers 1 (setFirstInt vbo);
+      Gl.delete_vertex_arrays 1 (setFirstInt vao);*)
       GLFW.destroyWindow ~window;
       GLFW.terminate ();
       logger Info "Successfully terminated GLFW. Exiting.")

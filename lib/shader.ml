@@ -3,6 +3,16 @@ open Logger
 open Vector
 open Bigarray
 
+type uniform = VectorUniform1f of string * (float vector1)
+             | VectorUniform1i of string * (int vector1)
+             | VectorUniform2f of string * (float vector2)
+             | VectorUniform2i of string * (int vector2)
+             | VectorUniform3f of string * (float vector3)
+             | VectorUniform3i of string * (int vector3)
+             | VectorUniform4f of string * (float vector4)
+             | VectorUniform4i of string * (int vector4)
+             | MatrixUniform4f of string * (float matrix4)
+
 
 class shader ~(shaderType : int) ~(shaderSourcePath : string) =
   (*constructor*)
@@ -54,7 +64,7 @@ class shader ~(shaderType : int) ~(shaderSourcePath : string) =
     method getSuccess =
       success
     (*Do not forget to delete shaders manually before they get out of scope ! OCaml provides no deestructor function for us to do that automatically*)
-    method deleteShader () =
+    method delete () =
       Gl.delete_shader id
   end
 
@@ -66,8 +76,8 @@ class shaderProgram ~(vertexShader : shader) ~(fragmentShader : shader) =
     Gl.attach_shader programID vertexShader#getID;
     Gl.attach_shader programID fragmentShader#getID;
     Gl.link_program programID;
-    vertexShader#deleteShader ();
-    fragmentShader#deleteShader ();
+    vertexShader#delete ();
+    fragmentShader#delete ();
     (*check for linking errors*)
     if getFirstInt (Gl.get_programiv programID Gl.link_status) <> Gl.true_ then
       let len = getFirstInt (Gl.get_programiv programID Gl.info_log_length) in
@@ -105,7 +115,18 @@ class shaderProgram ~(vertexShader : shader) ~(fragmentShader : shader) =
     (*Same for matrix uniforms*)
     method setUniformMatrix4f ~name ~(value : float matrix4) =
       let location = Gl.get_uniform_location id name in Gl.use_program id; Gl.uniform_matrix4fv location 1 false (bigarrayOfMatrix4f value)
+    (*generic method*)
+    method setUniform (uniform : uniform) = match uniform with
+      | VectorUniform1f (name, value) -> self#setUniform1f ~name ~value
+      | VectorUniform1i (name, value) -> self#setUniform1i ~name ~value
+      | VectorUniform2f (name, value) -> self#setUniform2f ~name ~value
+      | VectorUniform2i (name, value) -> self#setUniform2i ~name ~value
+      | VectorUniform3f (name, value) -> self#setUniform3f ~name ~value
+      | VectorUniform3i (name, value) -> self#setUniform3i ~name ~value
+      | VectorUniform4f (name, value) -> self#setUniform4f ~name ~value
+      | VectorUniform4i (name, value) -> self#setUniform4i ~name ~value
+      | MatrixUniform4f (name, value) -> self#setUniformMatrix4f ~name ~value
     (*Do not forget to call that before program gets out of scope to avoid memory leak!*)
-    method deleteProgram () =
+    method delete () =
       Gl.delete_program id
   end
