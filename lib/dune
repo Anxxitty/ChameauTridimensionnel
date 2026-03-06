@@ -1,0 +1,3 @@
+(library
+ (name ChameauTridimensionnel)
+ (libraries tgls.tgl3))
