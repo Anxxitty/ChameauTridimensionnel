@@ -9,6 +9,7 @@ let zero : type a b. (a, b) kind -> a = function
   | Int -> 0 | Nativeint -> 0n
   | Char -> '\000'
 
+(*Vector datatype*)
 type 'a vector1 = { x : 'a }
 type 'a vector2 = { x : 'a ; y : 'a }
 type 'a vector3 = { x : 'a ; y : 'a ; z : 'a }
@@ -24,12 +25,14 @@ type ('a, 'b) vectorKind = Vector1Kind of ('a, 'b) kind
                          | Vector3Kind of ('a, 'b) kind
                          | Vector4Kind of ('a, 'b) kind
 
+(*Matrix datatype*)
 type 'a matrix4 = 'a vector4 * 'a vector4 * 'a vector4 * 'a vector4
 
-type ('a, 'b) matrix = Matrix4 of (('a, 'b) kind * 'a matrix4)
+type 'a matrix = Matrix4 of 'a matrix4
 
 type ('a, 'b) matrixKind = Matrix4Kind of ('a, 'b) kind
 
+(*Add operator for vectors*)
 let (+:) (vector1 : int vector) (vector2 : int vector) = match vector1 with
   | Vector1 vec1 -> (match vector2 with
     | Vector1 vec2 -> Vector1 { x = vec1.x + vec2.x }
@@ -74,6 +77,81 @@ let (+:.) (vector1 : float vector) (vector2 : float vector) = match vector1 with
     | Vector3 vec2 -> Vector4 { r = vec1.r +. vec2.x ; g = vec1.g +. vec2.y ; b = vec1.b +. vec2.z ; a = vec1.a }
     | Vector4 vec2 -> Vector4 { r = vec1.r +. vec2.r ; g = vec1.g +. vec2.g ; b = vec1.b +. vec2.b ; a = vec1.a +. vec2.a })
 
+(*Multiply matrix operator*)
+let multiplyMatrices4f ((a1, b1, c1, d1) : float matrix4) ((a2, b2, c2, d2) : float matrix4) =
+  let ar = (a1.r *. a2.r) +. (a1.g *. b2.r) +. (a1.b *. c2.r) +. (a1.a *. d2.r) in
+  let ag = (a1.r *. a2.g) +. (a1.g *. b2.g) +. (a1.b *. c2.g) +. (a1.a *. d2.g) in
+  let ab = (a1.r *. a2.b) +. (a1.g *. b2.b) +. (a1.b *. c2.b) +. (a1.a *. d2.b) in
+  let aa = (a1.r *. a2.a) +. (a1.g *. b2.a) +. (a1.b *. c2.a) +. (a1.a *. d2.a) in
+  let br = (b1.r *. a2.r) +. (b1.g *. b2.r) +. (b1.b *. c2.r) +. (b1.a *. d2.r) in
+  let bg = (b1.r *. a2.g) +. (b1.g *. b2.g) +. (b1.b *. c2.g) +. (b1.a *. d2.g) in
+  let bb = (b1.r *. a2.b) +. (b1.g *. b2.b) +. (b1.b *. c2.b) +. (b1.a *. d2.b) in
+  let ba = (b1.r *. a2.a) +. (b1.g *. b2.a) +. (b1.b *. c2.a) +. (b1.a *. d2.a) in
+  let cr = (c1.r *. a2.r) +. (c1.g *. b2.r) +. (c1.b *. c2.r) +. (c1.a *. d2.r) in
+  let cg = (c1.r *. a2.g) +. (c1.g *. b2.g) +. (c1.b *. c2.g) +. (c1.a *. d2.g) in
+  let cb = (c1.r *. a2.b) +. (c1.g *. b2.b) +. (c1.b *. c2.b) +. (c1.a *. d2.b) in
+  let ca = (c1.r *. a2.a) +. (c1.g *. b2.a) +. (c1.b *. c2.a) +. (c1.a *. d2.a) in
+  let dr = (d1.r *. a2.r) +. (d1.g *. b2.r) +. (d1.b *. c2.r) +. (d1.a *. d2.r) in
+  let dg = (d1.r *. a2.g) +. (d1.g *. b2.g) +. (d1.b *. c2.g) +. (d1.a *. d2.g) in
+  let db = (d1.r *. a2.b) +. (d1.g *. b2.b) +. (d1.b *. c2.b) +. (d1.a *. d2.b) in
+  let da = (d1.r *. a2.a) +. (d1.g *. b2.a) +. (d1.b *. c2.a) +. (d1.a *. d2.a) in
+  (({r=ar;g=ag;b=ab;a=aa},{r=br;g=bg;b=bb;a=ba},{r=cr;g=cg;b=cb;a=ca},{r=dr;g=dg;b=db;a=da}) : float matrix4)
+
+let ( *::. ) mat1 mat2 = multiplyMatrices4f mat1 mat2
+
+let identityMatrix = ((
+  {r=1.0; g=0.0; b=0.0; a=0.0},
+  {r=0.0; g=1.0; b=0.0; a=0.0},
+  {r=0.0; g=0.0; b=1.0; a=0.0},
+  {r=0.0; g=0.0; b=0.0; a=1.0}
+) : float matrix4)
+
+let scaleMatrix (scaleVector : float vector3) = ((
+  {r=scaleVector.x; g=0.0; b=0.0; a=0.0},
+  {r=0.0; g=scaleVector.y; b=0.0; a=0.0},
+  {r=0.0; g=0.0; b=scaleVector.z; a=0.0},
+  {r=0.0; g=0.0; b=0.0; a=1.0}
+) : float matrix4)
+
+let translationMatrix (translationVector : float vector3) = ((
+  {r=1.0; g=0.0; b=0.0; a=translationVector.x},
+  {r=0.0; g=1.0; b=0.0; a=translationVector.y},
+  {r=0.0; g=0.0; b=1.0; a=translationVector.z},
+  {r=0.0; g=0.0; b=0.0; a=1.0}
+) : float matrix4)
+
+(*quaternion rotation*)
+type quaternion = {r : float; i : float; j : float; k : float}
+
+let quaternionMultiply q1 q2 =
+  {r=(q1.r*.q2.r-.q1.i*.q2.i-.q1.j*.q2.j-.q1.k*.q2.k);
+   i=(q1.i*.q2.r+.q1.r*.q2.i+.q1.j*.q2.k-.q1.k*.q2.j);
+   j=(q1.j*.q2.r+.q1.r*.q2.j+.q1.k*.q2.i-.q1.i*.q2.k);
+   k=(q1.k*.q2.r+.q1.r*.q2.k+.q1.i*.q2.j-.q1.j*.q2.i)}
+
+(*conversion from q to a rotation matrix found on wikipedia*)
+let rotationMatrix ~(axis: float vector3) ~(angle: float) = 
+let t = angle/.2. in let sint = sin t in 
+let q = { r=(cos t); i=sint*.axis.x; j=sint*.axis.y; k=sint*.axis.z } in
+let s = 2.0/.(q.r**2.+.q.i**2.+.q.j**2.+.q.k**2.)
+in ((
+  { r=1.-.s*.(q.j**2.+.q.k**2.) ; g=s*.(q.i*.q.j-.q.k*.q.r) ; b=s*.(q.i*.q.k+.q.j*.q.r) ; a=0.0 },
+  { r=s*.(q.i*.q.j+.q.k*.q.r) ; g=1.-.s*.(q.i**2.+.q.k**2.) ; b=s*.(q.j*.q.k-.q.i*.q.r) ; a=0.0 },
+  { r=s*.(q.i*.q.k-.q.j*.q.r) ; g=s*.(q.j*.q.k+.q.i*.q.r) ; b=1.-.s*.(q.i**2.+.q.j**2.) ; a=0.0 },
+  { r=0.0 ; g=0.0 ; b=0.0 ; a=1.0 }
+) : float matrix4)
+
+(*Translated directly from glm source code (for future reference: glm/ext/matrix_clip_space::perspectiveRH_NO)*)
+(*Note: it is transposed compared to the glm version*)
+let projectionMatrix fovy aspect zNear zFar =
+  let tanHalfFovy = tan (fovy /. 2.0) in ((
+    { r=1.0/.(aspect*.tanHalfFovy); g=0.0; b=0.0; a=0.0 },
+    { r=0.0; g=1.0/.tanHalfFovy; b=0.0; a=0.0 },
+    { r=0.0; g=0.0; b=(-.(zFar +. zNear))/.(zFar -. zNear); a=(-.2.*.zFar*.zNear)/.(zFar -. zNear) },
+    { r=0.0; g=0.0; b=(-1.0); a=0.0 }
+  ) : float matrix4)
+
+(*Bigarray helpers*)
 let createBigarray kind k n = Array1.create kind C_layout (k*n)
 
 (*Returns the first int of the Bigarray returned by func*)
@@ -87,25 +165,10 @@ let setFirstInt value =
   let a = createBigarray Int32 1 1 in
   (a.{0} <- Int32.of_int value; a)
 
-(*Get the i-th 3-dimensional vector in the bigarray a*)
-let getVector3 a i = let j = 3 * i in a.{j}, a.{j+1}, a.{j+2}
-
-(*Get the i-th 4-dimensional vector in the bigarray a*)
-let getVector4 a i = let j = 4 * i in a.{j}, a.{j+1}, a.{j+2}, a.{j+3}
-
-(*Set the i-th 3-dimensional vector in the bigarray a*)
-let setVector3 a i x y z =
-  let j = i * 3 in
-  (a.{j} <- x; a.{j+1} <- y; a.{j+2} <- z)
-
 (*Set the i-th 4-dimensional vector in the bigarray a*)
 let setVector4 a i r g b alpha =
   let j = i * 4 in
   (a.{j} <- r; a.{j+1} <- g; a.{j+2} <- b; a.{j+3} <- alpha)
-
-let setVector7 a i x y z r g b alpha =
-  let j = i * 7 in
-  (a.{j} <- x; a.{j+1} <- y; a.{j+2} <- z; a.{j+3} <- r; a.{j+4} <- g; a.{j+5} <- b; a.{j+6} <- alpha)
 
 let bigarrayOfMatrix4f ((a, b, c, d) : float matrix4) = 
   let bigarray = createBigarray Float32 4 4 in

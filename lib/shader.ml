@@ -114,7 +114,7 @@ class shaderProgram ~(vertexShader : shader) ~(fragmentShader : shader) =
       let location = Gl.get_uniform_location id name in Gl.use_program id; Gl.uniform4f location value.r value.g value.b value.a
     (*Same for matrix uniforms*)
     method setUniformMatrix4f ~name ~(value : float matrix4) =
-      let location = Gl.get_uniform_location id name in Gl.use_program id; Gl.uniform_matrix4fv location 1 false (bigarrayOfMatrix4f value)
+      let location = Gl.get_uniform_location id name in Gl.use_program id; Gl.uniform_matrix4fv location 1 true (bigarrayOfMatrix4f value)
     (*generic method*)
     method setUniform (uniform : uniform) = match uniform with
       | VectorUniform1f (name, value) -> self#setUniform1f ~name ~value
