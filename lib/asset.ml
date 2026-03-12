@@ -1,6 +1,7 @@
 open Vector
 open Shader
 open Logger
+open Window
 open Bigarray
 open Tgl3
 
@@ -300,7 +301,7 @@ class ['a, 'b, 'c] drawable ~(vertexArray : ('a, 'b, 'c) vertexArray) ~(shaderPr
       _rotation <- (_rotation *::. (rotationMatrix ~axis ~angle))
     method scale (scalingVector : float vector3) =
       _scale <- { x = _scale.x *. scalingVector.x; y = _scale.y *. scalingVector.y; z = _scale.z *. scalingVector.z }
-    method render ~(window : GLFW.window) ~(uniforms : uniform list) =
+    method render ~(window : window) ~(uniforms : uniform list) =
       logger DebugMainLoop "drawable: Rendering a drawable.";
       _vertexArray#bind ();
       let rec uniformSetter l = match l with
