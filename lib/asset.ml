@@ -1,4 +1,5 @@
 open Vector
+open Actor
 open Shader
 open Logger
 open Window
@@ -44,7 +45,7 @@ class ['a, 'b] vertexAttribute ~(attributeType : ('a, 'b) vectorKind) ~numberOfV
   ) in
   object (self)
     (*contains the actual vertex attribute data*)
-    val _data = bigarray
+    val mutable _data = bigarray
     (*contains the type of the data as a bigarray kind*)
     val _kind = kind
     (*defines if the vertex attribute contains 1- 2- 3- or 4-dimensional vectors*)
@@ -65,11 +66,13 @@ class ['a, 'b] vertexAttribute ~(attributeType : ('a, 'b) vectorKind) ~numberOfV
       _numberOfVertices
     method getRawData =
       _data
+    method setRawData ba =
+      _data <- ba
     method getSize =
       _size
     (*returns the vertexAttribute of the i-th vertex*)
     method getVertexAttribute ~index = 
-      let () = logger Debug "vertexAttribute: retrieving a vertexAttribute" in
+      (*let () = logger Debug "vertexAttribute: retrieving a vertexAttribute" in*)
       match _dimension with
         | Dim1 -> Vector1 { x = _data.{index} }
         | Dim2 -> Vector2 { x = _data.{2*index}; y = _data.{2*index+1} }
@@ -205,7 +208,9 @@ class ['a, 'b, 'c] vertexArray ~kind ~(vertexAttributes : (('a, 'b) vertexAttrib
         Gl.enable_vertex_attrib_array index;
         setAttributePointers (index+1) (offset+a#getSize) q
       )
-    in setAttributePointers 0 0 vertexAttributes 
+    in setAttributePointers 0 0 vertexAttributes;
+    (*Do not forget to unbind the VAO to avoid modifying it outside the scope of this constructor*)
+    Gl.bind_vertex_array 0
   ) in
   object (self)
     val _id = id
@@ -233,6 +238,8 @@ class ['a, 'b, 'c] vertexArray ~kind ~(vertexAttributes : (('a, 'b) vertexAttrib
       _numberOfVertices <- (match vertexAttributes with
         | [] -> 0 
         | a::q -> a#getNumberOfVertices);
+      (*Reconfiguring the VAO*)
+      Gl.bind_vertex_array _id;
       (*replacing the VBO*)
       _vertexBuffer#delete ();
       _vertexBuffer <- new buffer ~bufferType:Gl.array_buffer ~kind;
@@ -249,11 +256,14 @@ class ['a, 'b, 'c] vertexArray ~kind ~(vertexAttributes : (('a, 'b) vertexAttrib
           Gl.enable_vertex_attrib_array index;
           setAttributePointers (index+1) (offset+a#getSize) q
         )
-      in setAttributePointers 0 0 vertexAttributes
+      in setAttributePointers 0 0 vertexAttributes;
+      Gl.bind_vertex_array 0;
     method setDrawingType ~drawingType =
       _drawingType <- drawingType
     method bind () =
       Gl.bind_vertex_array _id
+    method unbind () =
+      Gl.bind_vertex_array 0;
     (*If vertexAttribute contents are changed or if drawing type is changed, this redraws the VBO accordingly*)
     method redraw () =
       _vertexBuffer#writeVertexAttributes ~vertexAttributes ~usage:drawingType;
@@ -265,42 +275,20 @@ class ['a, 'b, 'c] vertexArray ~kind ~(vertexAttributes : (('a, 'b) vertexAttrib
 
 class ['a, 'b, 'c] drawable ~(vertexArray : ('a, 'b, 'c) vertexArray) ~(shaderProgram : shaderProgram) ~(numberOfDrawnVertices : int) ~(sceneCoordinates : float vector3) ~(localRotation : float matrix4) ~(scale : float vector3) =
   object (self)
+    inherit movable ~sceneCoordinates ~localRotation ~scale
     val mutable _vertexArray = vertexArray
     val mutable _shaderProgram = shaderProgram
-    val mutable _coordinates = sceneCoordinates
-    val mutable _rotation = localRotation
-    val mutable _scale = scale
     val _numberOfDrawnVertices = numberOfDrawnVertices
     (*getters and setters*)
     method getVertexArray =
       _vertexArray
     method getShaderProgram =
       _shaderProgram
-    method getCoordinates =
-      _coordinates
-    method getRotation =
-      _rotation
-    method getScale =
-      _scale
     method setVertexArray (vertexArray : ('a, 'b, 'c) vertexArray) =
       _vertexArray <- vertexArray
     method setShaderProgram (shaderProgram : shaderProgram) =
       _shaderProgram <- shaderProgram
-    method setCoordinates (coordinates : float vector3) =
-      _coordinates <- coordinates
-    method setRotation (rotation : float matrix4) =
-      _rotation <- rotation
-    method setScale (scale : float vector3) =
-      _scale <- scale
     (*other methods*)
-    (*translates the object by the amount given*)
-    (*sets position to 0,0,0 if result of addition is not a Vector3 (this cannot actually happen)*)
-    method translate (translation : float vector3) =
-      _coordinates <- match (Vector3 _coordinates) +:. (Vector3 translation) with | Vector3 vec -> vec | _ -> {x=0.0;y=0.0;z=0.0}
-    method rotate ~(axis : float vector3) ~(angle : float) =
-      _rotation <- (_rotation *::. (rotationMatrix ~axis ~angle))
-    method scale (scalingVector : float vector3) =
-      _scale <- { x = _scale.x *. scalingVector.x; y = _scale.y *. scalingVector.y; z = _scale.z *. scalingVector.z }
     method render ~(window : window) ~(uniforms : uniform list) =
       logger DebugMainLoop "drawable: Rendering a drawable.";
       _vertexArray#bind ();
@@ -311,10 +299,9 @@ class ['a, 'b, 'c] drawable ~(vertexArray : ('a, 'b, 'c) vertexArray) ~(shaderPr
           uniformSetter q)
       in uniformSetter uniforms;
       (*apply local rotation, scale and scene position*)
-      _shaderProgram#setUniform (MatrixUniform4f ("localRotation", _rotation));
-      _shaderProgram#setUniform (MatrixUniform4f ("scale", (scaleMatrix _scale)));
-      _shaderProgram#setUniform (MatrixUniform4f ("sceneCoordinates", (translationMatrix _coordinates)));
+      let modelMatrix = translationMatrix _coordinates *::. scaleMatrix _scale *::. _rotation in
+      _shaderProgram#setUniform (MatrixUniform4f ("modelMatrix", modelMatrix));
       _shaderProgram#use ();
       Gl.draw_elements Gl.triangles _numberOfDrawnVertices (getGlType _vertexArray#getElementBuffer#getKind) (`Offset 0);
-      
+      _vertexArray#unbind ();
   end

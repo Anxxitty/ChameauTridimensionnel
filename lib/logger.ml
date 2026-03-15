@@ -39,4 +39,10 @@ let logToFile logType message =
 let logger ?shouldLogToFile logType message = match shouldLogToFile with
   | Some true | None -> logToFile logType message; logToConsole logType message
   | Some false -> logToConsole logType message
-  
+
+
+let string_of_int_list l =
+  let rec aux v = match v with
+    | [] -> ""
+    | a::q -> if q = [] then (string_of_int a)^(aux q) else (string_of_int a)^", "^(aux q) 
+  in "["^(aux l)^"]"

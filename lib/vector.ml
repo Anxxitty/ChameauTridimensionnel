@@ -32,6 +32,37 @@ type 'a matrix = Matrix4 of 'a matrix4
 
 type ('a, 'b) matrixKind = Matrix4Kind of ('a, 'b) kind
 
+let pi = 3.141592653589793115997963468544185161590576171875
+
+let radiansOfDeg angle =
+  angle*.pi/.180.
+
+let degOfRadians angle =
+  angle*.180./.pi
+
+(*dot product*)
+let dot vec1 vec2 = vec1.x*.vec2.x +. vec1.y*.vec2.y +. vec1.z*.vec2.z
+
+(*cross product*)
+let cross vec1 vec2 = {x=vec1.y*.vec2.z-.vec1.z*.vec2.y;y=vec1.z*.vec2.x-.vec1.x*.vec2.z;z=vec1.x*.vec2.y-.vec1.y*.vec2.x}
+
+(*normalizes the vector*)
+let normalize3f vec =
+  let length = sqrt (vec.x**2. +. vec.y**2. +. vec.z**2.) in
+  {x=vec.x/.length; y=vec.y/.length; z=vec.z/.length}
+
+(*transposes a matrix*)
+let transpose (a, b, c, d) = (
+  {r=a.r; g=b.r; b=c.r; a=d.r},
+  {r=a.g; g=b.g; b=c.g; a=d.g},
+  {r=a.b; g=b.b; b=c.b; a=d.b},
+  {r=a.a; g=b.a; b=c.a; a=d.a}
+)
+
+let normalize4f vec =
+  let length = sqrt (vec.r**2. +. vec.g**2. +. vec.b**2. +. vec.a**2.) in
+  {r=vec.r/.length; g=vec.g/.length; b=vec.b/.length; a=vec.a/.length}
+
 (*Add operator for vectors*)
 let (+:) (vector1 : int vector) (vector2 : int vector) = match vector1 with
   | Vector1 vec1 -> (match vector2 with
@@ -99,6 +130,12 @@ let multiplyMatrices4f ((a1, b1, c1, d1) : float matrix4) ((a2, b2, c2, d2) : fl
 
 let ( *::. ) mat1 mat2 = multiplyMatrices4f mat1 mat2
 
+let multiplyMatVec4f ((a, b, c, d) : float matrix4) vec =
+  {r=a.r*.vec.r+.a.g*.vec.g+.a.b*.vec.b+.a.a*.vec.a;
+   g=b.r*.vec.r+.b.g*.vec.g+.b.b*.vec.b+.b.a*.vec.a;
+   b=c.r*.vec.r+.c.g*.vec.g+.c.b*.vec.b+.c.a*.vec.a;
+   a=d.r*.vec.r+.d.g*.vec.g+.d.b*.vec.b+.d.a*.vec.a}
+
 let identityMatrix = ((
   {r=1.0; g=0.0; b=0.0; a=0.0},
   {r=0.0; g=1.0; b=0.0; a=0.0},
@@ -130,9 +167,10 @@ let quaternionMultiply q1 q2 =
    k=(q1.k*.q2.r+.q1.r*.q2.k+.q1.i*.q2.j-.q1.j*.q2.i)}
 
 (*conversion from q to a rotation matrix found on wikipedia*)
-let rotationMatrix ~(axis: float vector3) ~(angle: float) = 
+let rotationMatrix ~(axis: float vector3) ~(angle: float) =
+let normalizedAxis = normalize3f axis in
 let t = angle/.2. in let sint = sin t in 
-let q = { r=(cos t); i=sint*.axis.x; j=sint*.axis.y; k=sint*.axis.z } in
+let q = { r=(cos t); i=sint*.normalizedAxis.x; j=sint*.normalizedAxis.y; k=sint*.normalizedAxis.z } in
 let s = 2.0/.(q.r**2.+.q.i**2.+.q.j**2.+.q.k**2.)
 in ((
   { r=1.-.s*.(q.j**2.+.q.k**2.) ; g=s*.(q.i*.q.j-.q.k*.q.r) ; b=s*.(q.i*.q.k+.q.j*.q.r) ; a=0.0 },
@@ -143,13 +181,25 @@ in ((
 
 (*Translated directly from glm source code (for future reference: glm/ext/matrix_clip_space::perspectiveRH_NO)*)
 (*Note: it is transposed compared to the glm version*)
-let projectionMatrix fovy aspect zNear zFar =
+let projectionMatrix ~fovy ~aspect ~zNear ~zFar =
   let tanHalfFovy = tan (fovy /. 2.0) in ((
     { r=1.0/.(aspect*.tanHalfFovy); g=0.0; b=0.0; a=0.0 },
     { r=0.0; g=1.0/.tanHalfFovy; b=0.0; a=0.0 },
     { r=0.0; g=0.0; b=(-.(zFar +. zNear))/.(zFar -. zNear); a=(-.2.*.zFar*.zNear)/.(zFar -. zNear) },
     { r=0.0; g=0.0; b=(-1.0); a=0.0 }
   ) : float matrix4)
+
+(*generates a matrix that converts from world space to view space*)
+let lookAtMatrix ~cameraPosition ~direction ~upVector =
+  let cameraZ = {x=(-.direction.x);y=(-.direction.y);z=(-.direction.z)} in
+  let cameraX = cross upVector cameraZ in
+  let cameraY = cross cameraZ cameraX in
+  let rot = ({r=cameraX.x; g=cameraX.y; b=cameraX.z; a=1.0},
+             {r=cameraY.x; g=cameraY.y; b=cameraY.z; a=1.0},
+             {r=cameraZ.x; g=cameraZ.y; b=cameraZ.z; a=1.0},
+             {r=0.0; g=0.0; b=0.0; a=1.0}) in
+  let trans = translationMatrix {x=(-.cameraPosition.x); y=(-.cameraPosition.y); z=(-.cameraPosition.z)} in
+  rot *::. trans
 
 (*Bigarray helpers*)
 let createBigarray kind k n = Array1.create kind C_layout (k*n)
