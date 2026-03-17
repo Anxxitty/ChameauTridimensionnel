@@ -32,6 +32,7 @@ type 'a matrix = Matrix4 of 'a matrix4
 
 type ('a, 'b) matrixKind = Matrix4Kind of ('a, 'b) kind
 
+(*Handy constants*)
 let pi = 3.141592653589793115997963468544185161590576171875
 
 let radiansOfDeg angle =

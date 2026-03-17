@@ -14,20 +14,28 @@ let () =
   (*Initialize logger*)
   let date = Unix.localtime (Unix.time ()) in
   initLogger ~enableLogToFile:false ~enableDebug:true ~enableDebugMainLoop:false ~logFilePath:("log/log_"^(string_of_int date.tm_mday)^"-"^(string_of_int (date.tm_mon+1))^"-"^(string_of_int (date.tm_year+1900))^"_"^(string_of_int date.tm_hour)^"h"^(string_of_int date.tm_min)^"min"^(string_of_int date.tm_sec)^"sec.txt");
-  
+
   (*Create a window*)
   logger Debug "Main: Initializing a window.";
   let window = new window ~width:1280 ~height:720 ~name:"WombatCombat" in
   window#hideCursor ();
 
+  (*Wireframe mode*)
+  Gl.polygon_mode Gl.front_and_back Gl.line;
+
   (*Testing the basic .obj model loader*)
   let cubeNbVert, cubeMesh, cubeIndices = loadObjModel "assets/models/cube.obj" in
-  let catNbVert, catMesh, catIndices = loadObjModel "assets/models/table.obj" in
+  let catNbVert, catMesh, catIndices = loadObjModel "assets/models/darkvadortie.obj" in
+
+  logger Info (string_of_int_list_capped catIndices 24);
+  logger Info ((string_of_float catMesh.{0})^" "^(string_of_float catMesh.{1})^" "^(string_of_float catMesh.{2}));
+  logger Info ((string_of_float catMesh.{3})^" "^(string_of_float catMesh.{4})^" "^(string_of_float catMesh.{5}));
 
   let catNumberOfDrawnVertices = List.length catIndices in
+  let cubeNumberOfDrawnVertices = List.length cubeIndices in
   let positionsVAofCat = new vertexAttribute ~attributeType:(Vector4Kind Float32) ~numberOfVertices:catNbVert () in
   positionsVAofCat#setRawData catMesh;
-  let catEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int8_unsigned in
+  let catEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int16_unsigned in
   catEBO#writeElementBuffer ~indices:catIndices ~usage:Gl.static_draw;
 
   logger Info (string_of_int catNumberOfDrawnVertices);
@@ -35,7 +43,7 @@ let () =
 
   let positionsVAofModel = new vertexAttribute ~attributeType:(Vector4Kind Float32) ~numberOfVertices:cubeNbVert () in
   positionsVAofModel#setRawData cubeMesh;
-  let cubeEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int8_unsigned in
+  let cubeEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int16_unsigned in
   cubeEBO#writeElementBuffer ~indices:cubeIndices ~usage:Gl.static_draw;
 
 
@@ -91,25 +99,28 @@ let () =
   let cube2 = new drawable ~vertexArray:vao ~shaderProgram ~numberOfDrawnVertices:36 ~sceneCoordinates:{x=(-0.5);y=(-0.5);z=(-0.5)} ~localRotation:identityMatrix ~scale:{x=1.0;y=1.0;z=1.0} in
   let cube3 = new drawable ~vertexArray:vao ~shaderProgram ~numberOfDrawnVertices:36 ~sceneCoordinates:{x=(-5.);y=(-2.5);z=(-5.)} ~localRotation:identityMatrix ~scale:{x=10.0;y=0.1;z=10.0} in
 
-  let cubeModel = new drawable ~vertexArray:cubeVAO ~shaderProgram:shaderProgram2 ~numberOfDrawnVertices:36 ~sceneCoordinates:{x=0.0;y=5.0;z=0.0} ~localRotation:identityMatrix ~scale:{x=1.5;y=1.5;z=1.5} in
-  let cat = new drawable ~vertexArray:catVAO ~shaderProgram:shaderProgram2 ~numberOfDrawnVertices:catNumberOfDrawnVertices ~sceneCoordinates:{x=0.0;y=10.0;z=0.0} ~localRotation:identityMatrix ~scale:{x=1.0;y=1.0;z=1.0} in
+  let cubeModel = new drawable ~vertexArray:cubeVAO ~shaderProgram:shaderProgram2 ~numberOfDrawnVertices:cubeNumberOfDrawnVertices ~sceneCoordinates:{x=0.0;y=4.0;z=0.0} ~localRotation:identityMatrix ~scale:{x=1.5;y=1.5;z=1.5} in
+  let catInitialRot = rotationMatrix ~axis:{x=1.0;y=0.0;z=0.0} ~angle:(radiansOfDeg (0.0)) in
+  let cat = new drawable ~vertexArray:catVAO ~shaderProgram:shaderProgram2 ~numberOfDrawnVertices:catNumberOfDrawnVertices ~sceneCoordinates:{x=(-8.0);y=(8.0);z=0.0} ~localRotation:catInitialRot ~scale:{x=0.05;y=0.05;z=0.05} in
+  let cat2 = new drawable ~vertexArray:catVAO ~shaderProgram:shaderProgram2 ~numberOfDrawnVertices:catNumberOfDrawnVertices ~sceneCoordinates:{x=8.0;y=(8.0);z=0.0} ~localRotation:catInitialRot ~scale:{x=0.05;y=0.05;z=0.05} in
 
-  let camera = new camera ~sceneCoordinates:{x=0.0;y=0.0;z=(15.0)} ~scale:{x=0.0;y=0.0;z=0.0} ~fov:45.0 ~nearPlane:1.0 ~farPlane:100.0 in
+  let camera = new camera ~sceneCoordinates:{x=0.0;y=0.0;z=(15.0)} ~scale:{x=0.0;y=0.0;z=0.0} ~fov:(radiansOfDeg 45.0) ~nearPlane:1.0 ~farPlane:100.0 in
 
   (*Main render function*)
   let render aspectRatio () =
     logger DebugMainLoop "Main: Moving drawables.";
     cube#setCoordinates { x=(-0.5)+.(1.5*.sin ((GLFW.getTime ()))); y=(-0.5)+.(1.5*.cos ((GLFW.getTime ()))); z=(-0.5) };
     cube#setRotation (rotationMatrix ~axis:{x=0.5;y=0.5;z=0.2} ~angle:(sin(GLFW.getTime ())));
-    cubeModel#setRotation (rotationMatrix ~axis:{x=1.0;y=0.0;z=0.0} ~angle:(sin(GLFW.getTime ())));
-    cat#setRotation (rotationMatrix ~axis:{x=0.0;y=1.0;z=0.0} ~angle:(sin(GLFW.getTime ())));
+    cubeModel#setRotation (rotationMatrix ~axis:{x=0.0;y=1.0;z=0.0} ~angle:(sin(GLFW.getTime ())));
+    cat#rotate ~axis:{x=0.0;y=0.0;z=1.0} ~angle:0.01;
     let viewMatrix = camera#genViewMatrix in
     let projMatrix = camera#genProjectionMatrix ~aspectRatio in
     cube#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)];
     cube2#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)];
     cube3#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)];
     cubeModel#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)];
-    cat#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)] in
+    cat#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)];
+    cat2#render ~window ~uniforms:[MatrixUniform4f ("viewMatrix", viewMatrix);MatrixUniform4f ("projectionMatrix", projMatrix)] in
   
   let tick time elapsedTime () =
     camera#tick ~elapsedTime in

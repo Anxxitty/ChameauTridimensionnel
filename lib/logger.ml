@@ -46,3 +46,9 @@ let string_of_int_list l =
     | [] -> ""
     | a::q -> if q = [] then (string_of_int a)^(aux q) else (string_of_int a)^", "^(aux q) 
   in "["^(aux l)^"]"
+
+let string_of_int_list_capped l n =
+  let rec aux v i = match v with
+    | [] -> ""
+    | a::q -> if i >= n then aux [] i else (if q = [] then (string_of_int a)^(aux q (i+1)) else (string_of_int a)^", "^(aux q (i+1)))
+  in "["^(aux l 0)^"]"
