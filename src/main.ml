@@ -24,15 +24,17 @@ let () =
   Gl.polygon_mode Gl.front_and_back Gl.line;
 
   (*Testing the basic .obj model loader*)
-  let cubeNbVert, cubeMesh, cubeIndices = loadObjModel "assets/models/cube.obj" in
-  let catNbVert, catMesh, catIndices = loadObjModel "assets/models/darkvadortie.obj" in
+  let cubeObj = new model ~path:"assets/models/cube.obj" in
+  let catObj = new model ~path:"assets/models/darkvadortie.obj" in
+  let catMesh = catObj#getVertexCoordinates in
+  let catIndices = catObj#getVertexIndices in
+  let catNbVert = catObj#getNumberOfVertices in
+  let cubeIndices = cubeObj#getVertexIndices in
+  let cubeMesh = cubeObj#getVertexCoordinates in
+  let cubeNbVert = cubeObj#getNumberOfVertices in
 
-  logger Info (string_of_int_list_capped catIndices 24);
-  logger Info ((string_of_float catMesh.{0})^" "^(string_of_float catMesh.{1})^" "^(string_of_float catMesh.{2}));
-  logger Info ((string_of_float catMesh.{3})^" "^(string_of_float catMesh.{4})^" "^(string_of_float catMesh.{5}));
-
-  let catNumberOfDrawnVertices = List.length catIndices in
-  let cubeNumberOfDrawnVertices = List.length cubeIndices in
+  let catNumberOfDrawnVertices = catObj#getNumberOfDrawnVertices in
+  let cubeNumberOfDrawnVertices = cubeObj#getNumberOfDrawnVertices in
   let positionsVAofCat = new vertexAttribute ~attributeType:(Vector4Kind Float32) ~numberOfVertices:catNbVert () in
   positionsVAofCat#setRawData catMesh;
   let catEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int16_unsigned in
@@ -45,7 +47,6 @@ let () =
   positionsVAofModel#setRawData cubeMesh;
   let cubeEBO = new buffer ~bufferType:Gl.element_array_buffer ~kind:Int16_unsigned in
   cubeEBO#writeElementBuffer ~indices:cubeIndices ~usage:Gl.static_draw;
-
 
   let catVAO = new vertexArray ~kind:Float32 ~vertexAttributes:[positionsVAofCat] ~elementBuffer:catEBO ~drawingType:Gl.static_draw in
   let cubeVAO = new vertexArray ~kind:Float32 ~vertexAttributes:[positionsVAofModel] ~elementBuffer:cubeEBO ~drawingType:Gl.static_draw in
