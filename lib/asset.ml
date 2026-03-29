@@ -273,7 +273,7 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
       _element_buffer#delete ()
   end
 
-class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader_program : shader_program) ~(number_of_drawn_vertices : int) ~(scene_coordinates : float vector3) ~(local_rotation : float matrix4) ~(scale : float vector3) =
+class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader_program : shader_program) ~(number_of_drawn_vertices : int) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
   object (self)
     inherit movable ~scene_coordinates ~local_rotation ~scale
     val mutable _vertex_array = vertex_array
@@ -299,7 +299,7 @@ class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader
           uniform_setter q)
       in uniform_setter uniforms;
       (*apply local rotation, scale and scene position*)
-      let model_matrix = translation_matrix4f _coordinates *::. scale_matrix4f _scale *::. _rotation in
+      let model_matrix = translation_matrix4f _coordinates *::. scale_matrix4f _scale *::. (rotation_matrix4f_from_quat _rotation) in
       _shader_program#set_uniform (Matrix_uniform4f ("model_matrix", model_matrix));
       _shader_program#use ();
       Gl.draw_elements Gl.triangles _number_of_drawn_vertices (get_gl_type _vertex_array#get_element_buffer#get_kind) (`Offset 0);

@@ -1,7 +1,7 @@
 open Math
 open Logger
 
-class movable ~(scene_coordinates : float vector3) ~(local_rotation : float matrix4) ~(scale : float vector3) =
+class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
   object (self)
     val mutable _coordinates = scene_coordinates
     val mutable _rotation = local_rotation
@@ -21,7 +21,7 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : float matr
       _acceleration_vector
     method set_coordinates (coordinates : float vector3) =
       _coordinates <- coordinates
-    method set_rotation (rotation : float matrix4) =
+    method set_rotation (rotation : quaternion) =
       _rotation <- rotation
     method set_scale (scale : float vector3) =
       _scale <- scale
@@ -35,8 +35,8 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : float matr
     method translate (translation : float vector3) =
       _coordinates <- vec3_op ( +. ) _coordinates translation
     (*rotates the object along the given axis by the given angle*)
-    method rotate ~(axis : float vector3) ~(angle : float) =
-      _rotation <- (_rotation *::. (rotation_matrix4f ~axis ~angle))
+    method rotate ~(quat : quaternion) =
+      _rotation <- quat_multiply quat _rotation
     (*scales the object by the given vector*)
     method scale (scaling_vector : float vector3) =
       _scale <- vec3_op ( *. ) _scale scaling_vector
@@ -48,13 +48,10 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : float matr
 
 class camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
   object (self)
-    inherit movable ~scene_coordinates ~local_rotation:identity_matrix4f ~scale
+    inherit movable ~scene_coordinates ~local_rotation:identity_quat ~scale
     val mutable _fov = fov
     val mutable _near_plane = near_plane
     val mutable _far_plane = far_plane
-    val mutable _pitch = 0.0
-    val mutable _yaw = rad_of_deg 90.0
-    val mutable _camera_direction = {x=0.0;y=0.0;z=(-1.0)} (*initially the camera looks in the negative z direction*)
     (*getters and setters*)
     method get_fov =
       _fov
@@ -71,25 +68,27 @@ class camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(fa
     method gen_projection_matrix ~(aspect_ratio : float) =
       projection_matrix ~fov:_fov ~aspect_ratio ~near_plane:_near_plane ~far_plane:_far_plane
     method gen_view_matrix =
-      look_at_matrix ~camera_position:_coordinates ~direction:_camera_direction ~up_vector:{x=0.0;y=1.0;z=0.0}
+      let rot = rotation_matrix4f_from_quat {r=_rotation.r;i=(-._rotation.i);j=(-._rotation.j);k=(-._rotation.k)} in
+      let trans = translation_matrix4f { x=(-._coordinates.x);y=(-._coordinates.y);z=(-._coordinates.z)} in
+      rot *::. trans
     method rotate_yaw ~angle =
-      _yaw <- _yaw +. angle
+      _rotation <- quat_multiply (rotation_quat ~axis:{x=0.0;y=1.0;z=0.0} ~angle) _rotation
     method rotate_pitch ~angle =
-      _pitch <- _pitch +. angle;
-      if _pitch > rad_of_deg 89.0 then _pitch <- rad_of_deg 89.0;
-      if _pitch < rad_of_deg (-89.0) then _pitch <- rad_of_deg (-89.0);
-      logger Info ("pitch: "^string_of_float (deg_of_rad _pitch));
-      logger Info ("yaw: "^string_of_float (deg_of_rad _yaw))
+      let pitch_axis = vec3_of_vec4 (multiply_mat4f_vec4f (rotation_matrix4f_from_quat _rotation) {x=1.0;y=0.0;z=0.0;w=1.0}) in
+      _rotation <- quat_multiply (rotation_quat ~axis:pitch_axis ~angle) _rotation;
 
     (*tick is overriden so that the camera moves in the direction it is pointing and not along the world axes*)
     method! tick ~(elapsed_time : float) =
-      _camera_direction <- {x=cos _yaw;y=(-.sin _pitch);z=(-.cos _pitch)};
+      let camera_z = vec3_of_vec4 (multiply_mat4f_vec4f (rotation_matrix4f_from_quat _rotation) {x=0.0;y=0.0;z=(-1.0);w=1.0}) in
+      logger Info ("camera_z: "^string_of_vector3f camera_z);
+      let camera_x = vec3_of_vec4 (multiply_mat4f_vec4f (rotation_matrix4f_from_quat _rotation) {x=(-1.0);y=0.0;z=0.0;w=1.0}) in
+      logger Info ("camera_x: "^string_of_vector3f camera_x);
       let translation = vec3_scalar_op ( *. ) elapsed_time _velocity_vector in
-      let translation_along_camera_z = vec3_scalar_op ( *. ) translation.z _camera_direction in
-      let translation_along_camera_x = vec3_scalar_op ( *. ) translation.x (cross3f _camera_direction {x=0.0;y=1.0;z=0.0}) in
+      let translation_along_camera_z = vec3_scalar_op ( *. ) translation.z camera_z in
+      let translation_along_camera_x = vec3_scalar_op ( *. ) translation.x camera_x in
       let translation_world_space = {x=(dot3f translation_along_camera_x {x=1.0;y=0.0;z=0.0})+.(dot3f translation_along_camera_z {x=1.0;y=0.0;z=0.0});
                                    y=translation.y+.(dot3f translation_along_camera_z {x=0.0;y=1.0;z=0.0}+.(dot3f translation_along_camera_x {x=0.0;y=1.0;z=0.0}));
-                                   z=(dot3f translation_along_camera_x {x=0.0;y=0.0;z=(-1.0)})+.(dot3f translation_along_camera_z {x=0.0;y=0.0;z=(-1.0)})} in
+                                   z=(dot3f translation_along_camera_x {x=0.0;y=0.0;z=1.0})+.(dot3f translation_along_camera_z {x=0.0;y=0.0;z=1.0})} in
       self#translate translation_world_space;
       _velocity_vector <- vec3_op ( +. ) _velocity_vector (vec3_scalar_op ( *. ) elapsed_time _acceleration_vector)
   end

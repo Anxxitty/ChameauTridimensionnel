@@ -44,13 +44,17 @@ class window ~width ~height ~name =
     val _aspect_ratio = aspect_ratio
     val mutable _render_callback = None
     val mutable _tick_callback = None
+    val mutable _animation_tick_callback = None
     val mutable _should_close = false
     val mutable _input_handlers : (input_handler list) = []
-    val mutable _target_tick_time = 0.01 (*100 ticks per second*)
+    val mutable _target_tick_time = 0.05 (*20 ticks per second*) (*fixed-rate low-speed updates: for physical / game logic updates*)
+    val mutable _target_animation_tick_time = 0.01666667 (*60 animation ticks per second*) (*animation tick: for fixed-rate high-speed updates, typically animations / camera movement etc*) 
     val mutable _target_frame_time = 0.01666667 (*60 FPS*)
 
     val mutable _last_tick_timestamp = 0.0
     val mutable _tick_time = 0.0
+    val mutable _last_animation_tick_timestamp = 0.0
+    val mutable _animation_tick_time = 0.0
     val mutable _last_frame_timestamp = 0.0
     val mutable _frame_time = 0.0
     
@@ -74,6 +78,10 @@ class window ~width ~height ~name =
     (*The first float argument is for current time, the second for elapsed time since last tick*)
     method register_tick_callback (tick : (float -> float -> unit -> unit)) =
       _tick_callback <- Some tick
+    
+    (*The first float argument is for current time, the second for elapsed time since last tick*)
+    method register_animation_tick_callback (animation_tick : (float -> float -> unit -> unit)) =
+      _animation_tick_callback <- Some animation_tick
 
     method register_input_handler (input_handler : input_handler) =
       _input_handlers <- (input_handler::_input_handlers)
@@ -103,11 +111,17 @@ class window ~width ~height ~name =
     method get_tick_time =
       _tick_time
     
+    method get_animation_tick_time =
+      _animation_tick_time
+
     method set_fps fps =
       _target_frame_time <- (1./.(float_of_int fps))
     
     method set_tps tps =
       _target_tick_time <- (1./.(float_of_int tps))
+
+    method set_animation_tps tps =
+      _target_animation_tick_time <- (1./.(float_of_int tps))
     
     method hide_cursor () =
       GLFW.setInputMode ~window:_glfw_window ~mode:GLFW.Cursor ~value:GLFW.Disabled;
@@ -138,11 +152,20 @@ class window ~width ~height ~name =
       if (timestamp -. _last_tick_timestamp >= _target_tick_time) then (
         _tick_time <- timestamp -. _last_tick_timestamp;
         _last_tick_timestamp <- timestamp;
-        GLFW.pollEvents ();
-        self#process_input ();
         match _tick_callback with
           | None -> ()
-          | Some tick -> tick timestamp _tick_time ();
+          | Some tick -> tick timestamp _tick_time ())
+    
+    method animation_tick () =
+      let timestamp = GLFW.getTime () in
+      if (timestamp -. _last_animation_tick_timestamp >= _target_animation_tick_time) then (
+        _animation_tick_time <- timestamp -. _last_animation_tick_timestamp;
+        _last_animation_tick_timestamp <- timestamp;
+        GLFW.pollEvents ();
+        self#process_input ();
+        match _animation_tick_callback with
+          | None -> ()
+          | Some animation_tick -> animation_tick timestamp _animation_tick_time ();
         if GLFW.windowShouldClose ~window:_glfw_window then _should_close <- true)
     
     method delete () = 
