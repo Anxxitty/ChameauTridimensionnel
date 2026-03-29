@@ -76,6 +76,17 @@ let x_axis = vec3 1.0 0.0 0.0
 let y_axis = vec3 0.0 1.0 0.0
 let z_axis = vec3 0.0 0.0 1.0
 
+let vec3f_in_base ~(vector : float vector3) ~(base : float vector3 * float vector3 * float vector3) =
+  let ex,ey,ez = base in
+  let x = vec3_scalar_op ( *. ) vector.x ex in
+  let y = vec3_scalar_op ( *. ) vector.y ey in
+  let z = vec3_scalar_op ( *. ) vector.z ez in
+  {
+    x = dot3f x x_axis +. dot3f y x_axis +. dot3f z x_axis;
+    y = dot3f x y_axis +. dot3f y y_axis +. dot3f z y_axis;
+    z = dot3f x z_axis +. dot3f y z_axis +. dot3f z z_axis
+  }
+
 let string_of_vector1f (vec : float vector1) = "{ x = "^string_of_float vec.x^" }"
 let string_of_vector2f (vec : float vector2) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^" }"
 let string_of_vector3f (vec : float vector3) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^"; z = "^string_of_float vec.z^" }"
@@ -87,7 +98,7 @@ let string_of_vector4f (vec : float vector4) = "{ x = "^string_of_float vec.x^";
 type quaternion = { mutable r : float; mutable i : float; mutable j : float; mutable k : float}
 
 
-let quat_multiply q1 q2 =
+let multiply_quat q1 q2 =
   {r=(q1.r*.q2.r-.q1.i*.q2.i-.q1.j*.q2.j-.q1.k*.q2.k);
    i=(q1.i*.q2.r+.q1.r*.q2.i+.q1.j*.q2.k-.q1.k*.q2.j);
    j=(q1.j*.q2.r+.q1.r*.q2.j+.q1.k*.q2.i-.q1.i*.q2.k);
@@ -101,6 +112,19 @@ let rotation_quat ~(axis : float vector3) ~angle =
 let roll_of_rot_quat quat = atan2 (2.*.(quat.r*.quat.k +. quat.i*.quat.j)) (1.-.2.*.(quat.j**2. +. quat.k**2.))
 let pitch_of_rot_quat quat = atan2 (2.*.(quat.r*.quat.i +. quat.j*.quat.k)) (1.-.2.*.(quat.i**2. +. quat.j**2.))
 let yaw_of_rot_quat quat = asin (2. *. (quat.r*.quat.j -. quat.k*.quat.i))
+
+let vec4_of_quat quat = { x=quat.r ; y=quat.i ; z=quat.j ; w=quat.k }
+let quat_of_vec4 vec = { r=vec.x ; i=vec.y ; j=vec.z ; k=vec.w }
+
+let vec3_of_quat quat = { x=quat.i ; y=quat.j ; z=quat.k }
+let quat_of_vec3 (vec : float vector3) = { r=0.0 ; i=vec.x ; j=vec.y ; k=vec.z }
+
+let conj_quat quat = { r=quat.r ; i=(-.quat.i) ; j=(-.quat.j) ; k=(-.quat.k) }
+
+let rotate_vec_with_quat (vector : float vector3) (quat : quaternion) =
+  let p = quat_of_vec3 vector in
+  vec3_of_quat (multiply_quat (multiply_quat quat p) (conj_quat quat))
+
 
 let identity_quat = {r=1.0;i=0.0;j=0.0;k=0.0}
 

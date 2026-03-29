@@ -33,7 +33,8 @@ class window ~width ~height ~name =
     GLFW.swapInterval ~interval:0; (*Disables V-Sync*)
     GLFW.setInputMode ~window:win ~mode:GLFW.Cursor ~value:GLFW.Disabled; (*Captures the cursor*)
     logger Info "window: Successfully initialized GLFW and created a window.";
-    Gl.viewport 0 0 width height;
+    let w,h = GLFW.getFramebufferSize ~window:win in
+    Gl.viewport 0 0 w h;
     let _ = GLFW.setFramebufferSizeCallback ~window:win ~f:(Some (on_window_resize aspect_ratio)) in
     Gl.clear_color 0.0 0.0 0.0 1.0;
     Gl.enable Gl.depth_test;

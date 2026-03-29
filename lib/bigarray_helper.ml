@@ -36,3 +36,10 @@ let bigarray_of_matrix4f ((a, b, c, d) : float matrix4) =
   set_vector4 bigarray 2 c.x c.y c.z c.w;
   set_vector4 bigarray 3 d.x d.y d.z d.w;
   bigarray
+
+let string_of_float_bigarray ?(new_line=10) ba size =
+  let rec aux i j =
+    if j = new_line then "\n"^aux i 0 else
+    if i = (size - 1) then string_of_float ba.{i}^" ]"
+    else string_of_float ba.{i}^", "^aux (i+1) (j+1)
+  in "[ "^aux 0 0
