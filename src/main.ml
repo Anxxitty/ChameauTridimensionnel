@@ -4,7 +4,7 @@ open ChameauTridimensionnel
 open Bigarray_helper
 open Logger
 open Math
-open Asset
+open Graphics
 open Window
 open Actor
 open Shader
@@ -12,8 +12,6 @@ open Model
 
 (*Main function*)
 let () =
-  let car_tex_image = Stb_image.load "assets/textures/car_exterior.jpeg" in
-
   (*Initialize logger*)
   let date = Unix.localtime (Unix.time ()) in
   init_logger ~enable_log_to_file:false ~enable_debug:true ~enable_debug_main_loop:false ~log_file_path:("log/log_"^(string_of_int date.tm_mday)^"-"^(string_of_int (date.tm_mon+1))^"-"^(string_of_int (date.tm_year+1900))^"_"^(string_of_int date.tm_hour)^"h"^(string_of_int date.tm_min)^"min"^(string_of_int date.tm_sec)^"sec.txt");
@@ -35,40 +33,23 @@ let () =
   let table_model = new model ~path:"assets/models/table.obj" ~with_tex_and_normals:false in
   let torus_model = new model ~path:"assets/models/torus.obj" ~with_tex_and_normals:true in
   let car_model = new model ~path:"assets/models/car.obj" ~with_tex_and_normals:true in
-  (*let dirac_model = new model ~path:"assets/models/dirac.obj" in*)
+  let dirac_model = new model ~path:"assets/models/dirac.obj" ~with_tex_and_normals:false in
 
-  (*texturing the cube*)
+  let car_texture = new texture ~path:"assets/textures/car_exterior.jpeg" in
+  let brick_texture = new texture ~path:"assets/textures/brick.png" in
 
-  car_model#get_vao#bind ();
-
-  let car_tex = get_first_int (Gl.gen_textures 1) in
-  Gl.bind_texture Gl.texture_2d car_tex;
-  Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_s Gl.repeat;
-  Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_t Gl.repeat;
-  Gl.tex_parameteri Gl.texture_2d Gl.texture_min_filter Gl.linear;
-  Gl.tex_parameteri Gl.texture_2d Gl.texture_mag_filter Gl.linear;
-
-  let () = match car_tex_image with
-    | Ok a -> (
-      Stb_image.vflip a;
-      Gl.tex_image2d Gl.texture_2d 0 Gl.rgb a.width a.height 0 Gl.rgb Gl.unsigned_byte (`Data a.data);
-      Gl.generate_mipmap Gl.texture_2d;
-    )
-    | Error e -> match e with `Msg e -> (logger Error ("Main: failed to load car texture: "^e)) in
-  
-  car_model#get_vao#unbind ();
-
+  logger Debug "Main: Compiling and linking shader program for textured models.";
   let vertex_shader = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"assets/shaders/vertex_tex.glsl" in
-  let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment_tex.glsl" in
-  let tex_shader = new shader_program ~vertex_shader ~fragment_shader in
+  let fragment_shader1 = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment_tex.glsl" in
+  let fragment_shader2 = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment_tex2.glsl" in
+  let tex_shader = new shader_program ~vertex_shader ~fragment_shader:fragment_shader1 in
+  let tex_shader2 = new shader_program ~vertex_shader ~fragment_shader:fragment_shader2 in
 
-
-  let tex_cube_drawable = new drawable ~vertex_array:cube_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:cube_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=5.0;y=5.0;z=5.0} in
-
-  let car_drawable = new drawable ~vertex_array:car_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:car_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=(-15.0)} ~local_rotation:identity_quat ~scale:{x=(0.1);y=(0.1);z=(0.1)} in
+  let tex_cube_drawable = new textured_drawable ~vertex_array:cube_model#get_vao ~shader_program:tex_shader2 ~textures:[brick_texture;car_texture] ~number_of_drawn_vertices:cube_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=5.0;y=5.0;z=5.0} in
+  let car_drawable = new textured_drawable ~vertex_array:car_model#get_vao ~shader_program:tex_shader ~textures:[car_texture] ~number_of_drawn_vertices:car_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=(-15.0)} ~local_rotation:identity_quat ~scale:{x=(0.1);y=(0.1);z=(0.1)} in
 
   (*Compiling shaders*)
-  logger Debug "Main: Compiling and linking shader program for cube created by model_loader.";
+  logger Debug "Main: Compiling and linking shader program for untextured models.";
   let vertex_shader = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"assets/shaders/vertex2.glsl" in
   let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment.glsl" in
   let shader_program = new shader_program ~vertex_shader ~fragment_shader in
@@ -81,33 +62,30 @@ let () =
   let hexagon_drawable = new drawable ~vertex_array:hexagon_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:hexagon_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=3.0;z=(-20.0)} ~local_rotation:identity_quat ~scale:{x=0.5;y=0.5;z=0.5} in
   let table_drawable = new drawable ~vertex_array:table_model#get_vao ~shader_program ~number_of_drawn_vertices:table_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=(-16.0);z=0.0} ~local_rotation:identity_quat ~scale:{x=0.25;y=0.25;z=0.25} in
   let torus_drawable = new drawable ~vertex_array:torus_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:torus_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=3.0;z=12.0} ~local_rotation:identity_quat ~scale:{x=3.0;y=3.0;z=3.0} in
-  (*let dirac_drawable = new drawable ~vertex_array:dirac_model#get_vao ~shader_program ~number_of_drawn_vertices:dirac_model#get_number_of_drawn_vertices ~scene_coordinates:{x=10.0;y=7.0;z=12.0} ~local_rotation:identity_quat ~scale:{x=3.0;y=3.0;z=3.0} in
-  *)
+  let dirac_drawable = new drawable ~vertex_array:dirac_model#get_vao ~shader_program ~number_of_drawn_vertices:dirac_model#get_number_of_drawn_vertices ~local_rotation:identity_quat ~scene_coordinates:{x=30.0;y=5.0;z=(-50.0)} ~scale:{x=1.0;y=1.0;z=1.0} in
+
   let camera = new fly_camera ~scene_coordinates:{x=0.0;y=10.0;z=(15.0)} ~fov:(rad_of_deg 45.0) ~near_plane:1.0 ~far_plane:1000.0 in
 
-  (*logger Info (string_of_int_list_capped cube_model#get_vertex_indices 36);
-  logger Info (string_of_float_bigarray ~new_line:4 cube_model#get_vertex_coordinates (Array1.dim cube_model#get_vertex_coordinates));
-  logger Info (string_of_int cube_model#get_number_of_vertices);
-  logger Info (string_of_int cube_model#get_number_of_drawn_vertices);*)
-
   let in_tie = ref false in
+  let speed = ref 5.0 in
 
   (*Main render function*)
   let render aspect_ratio () =
     shader_program#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};
+    tex_shader#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};
     let view_matrix = camera#gen_view_matrix in
     let proj_matrix = camera#gen_projection_matrix ~aspect_ratio in
-    cube_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    cat_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    tie_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    dark_vador_tie_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    hexagon_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    table_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    torus_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    (*dirac_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    *)Gl.bind_texture Gl.texture_2d car_tex;
-    tex_cube_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)];
-    car_drawable#render ~window ~uniforms:[Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)]
+    let uniforms = [Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)] in
+    cube_drawable#render ~window ~uniforms;
+    cat_drawable#render ~window ~uniforms;
+    tie_drawable#render ~window ~uniforms;
+    dark_vador_tie_drawable#render ~window ~uniforms;
+    hexagon_drawable#render ~window ~uniforms;
+    table_drawable#render ~window ~uniforms;
+    torus_drawable#render ~window ~uniforms;
+    tex_cube_drawable#render ~window ~uniforms;
+    car_drawable#render ~window ~uniforms;
+    dirac_drawable#render ~window ~uniforms
     in
   
   let animation_tick time elapsed_time () =
@@ -139,14 +117,15 @@ let () =
   window#set_tps 20;
   window#set_animation_tps 60;
   window#register_input_handler (new input_handler ~key:GLFW.Escape ~press_callback:(window#show_cursor) ~release_callback:(fun () -> ()));
-  window#register_input_handler (new input_handler ~key:GLFW.W ~press_callback:(fun () -> camera#get_velocity_vector.z <- (-5.0)) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.S ~press_callback:(fun () -> camera#get_velocity_vector.z <-   5.0 ) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.A ~press_callback:(fun () -> camera#get_velocity_vector.x <- (-5.0)) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.D ~press_callback:(fun () -> camera#get_velocity_vector.x <-   5.0 ) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.LeftShift ~press_callback:(fun () -> camera#get_velocity_vector.y <- (-5.0)) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.Space     ~press_callback:(fun () -> camera#get_velocity_vector.y <-   5.0 ) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.W ~press_callback:(fun () -> camera#get_velocity_vector.z <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.S ~press_callback:(fun () -> camera#get_velocity_vector.z <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.A ~press_callback:(fun () -> camera#get_velocity_vector.x <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.D ~press_callback:(fun () -> camera#get_velocity_vector.x <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.LeftShift ~press_callback:(fun () -> camera#get_velocity_vector.y <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.Space     ~press_callback:(fun () -> camera#get_velocity_vector.y <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
   window#register_input_handler (new toggle_input_handler ~key:GLFW.F11 ~toggle_on_callback:(fun () -> window#enable_fullscreen ()) ~toggle_off_callback:(fun () -> window#disable_fullscreen ()));
   window#register_input_handler (new toggle_input_handler ~key:GLFW.T ~toggle_on_callback:(fun () -> in_tie := true) ~toggle_off_callback:(fun () -> in_tie := false));
+  window#register_input_handler (new input_handler ~key:GLFW.LeftControl ~press_callback:(fun () -> speed := 10.0) ~release_callback:(fun () -> speed := 5.0));
 
   let mouse_sensitivity = 0.001 in
 
@@ -194,6 +173,9 @@ let () =
         table_model#delete ();
         torus_model#delete ();
         car_model#delete ();
+        dirac_model#delete ();
+        brick_texture#delete ();
+        car_texture#delete ();
         logger Info "Main: Successfully terminated GLFW. Exiting.")
       else
         loop ();

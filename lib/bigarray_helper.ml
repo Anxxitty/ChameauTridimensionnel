@@ -1,5 +1,6 @@
 open Bigarray
 open Math
+open Logger
 let zero : type a b. (a, b) kind -> a = function
   | Float32 -> 0.0 | Complex32 -> Complex.zero
   | Float64 -> 0.0 | Complex64 -> Complex.zero
@@ -25,9 +26,9 @@ let set_first_int value =
   (a.{0} <- Int32.of_int value; a)
 
 (*Set the i-th 4-dimensional vector in the bigarray a*)
-let set_vector4 a i r g b alpha =
+let set_vector4 a i x y z w =
   let j = i * 4 in
-  (a.{j} <- r; a.{j+1} <- g; a.{j+2} <- b; a.{j+3} <- alpha)
+  (a.{j} <- x; a.{j+1} <- y; a.{j+2} <- z; a.{j+3} <- w)
 
 let bigarray_of_matrix4f ((a, b, c, d) : float matrix4) = 
   let bigarray = create_bigarray Float32 4 4 in

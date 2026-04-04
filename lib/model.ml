@@ -2,7 +2,7 @@ open Logger
 open Tgl3
 open Math
 open Bigarray
-open Asset
+open Graphics
 open Bigarray_helper
 
 
@@ -180,7 +180,10 @@ class model ~path ~with_tex_and_normals =
       (*that allows for efficient detection of vertices that need to be duplicated / ones that do not*)
       let sorted_vectorialized_indices_list = List.sort compare_lexico (build_vectorialized_indices_list [] 0 (vert_indices,tex_indices,norm_indices)) in
       
-      (*builds final vertex*)
+      (*builds final vertex index by returning a list of increasing indices each time a new unique (v,t,n) triplet is encountered, paired with the corresponding i index*)
+      (*The i index is then used to sort the vertex index to restore face order and then the final vertex index is extracted with list_of_snd_el*)
+      (*the function also returns (the last index + 1) which represents the number of unique (v,t,n) elements, ie the final number of vertices in the array that will be sent to OpenGL*)
+      (*That is where the lexicographic order comes in handy: duplicates are all next to each other and thus easy to eliminate*)
       let rec build_vertex_index vectorialized_indices same_as_previous acc index = match vectorialized_indices with
         | [] -> list_of_snd_el (List.sort compare_first_el acc), (index+1)
         | [(v,t,n,i)] -> if same_as_previous then build_vertex_index [] false ((i,index)::acc) index else build_vertex_index [] false ((i,index+1)::acc) (index+1)
@@ -191,11 +194,16 @@ class model ~path ~with_tex_and_normals =
           
       (*same_as_previous is initialized as true so that the first index does not start at 1*)
       let processed_vertex_index, size_of_reindexed_buffer = build_vertex_index sorted_vectorialized_indices_list true [] 0 in
-          
+            
+      (*creating rightly sized buffers containing the reindexed data*)
       let reindexed_vertex_coords = create_bigarray Float32 size_of_reindexed_buffer 4 in
       let reindexed_tex_coords = create_bigarray Float32 size_of_reindexed_buffer tex_coord_format in
       let reindexed_norm_coords = create_bigarray Float32 size_of_reindexed_buffer 3 in
-          
+      
+      (*the final buffers are filled following the same logic as the one used to create the final vertex index*)
+      (*the list of (v,t,n) is run through, ignoring duplicates, and writing correponding data of unique triplets in final buffers*)
+      (*as it is run through the same way it was for building the index, it will write the right data at the right place*)
+      (*here the i index is of no use*)
       let rec fill_reindexed_buffers vectorialized_indices same_as_previous data_index = match vectorialized_indices with
         | [] -> ()
         | [(v,t,n,i)] -> if same_as_previous then () else (
@@ -221,7 +229,7 @@ class model ~path ~with_tex_and_normals =
         | 1 -> Vector1_kind Float32
         | 2 -> Vector2_kind Float32
         | 3 -> Vector3_kind Float32
-        | _ -> Vector4_kind Float32 (*Let's hope this never happens (it souldn't in well formatted .obj files)*) in
+        | _ -> logger Warning ("model: Unsupported texture coordinates format in model file at path \""^path^"\""); Vector4_kind Float32 in
       let tex_coords_attrib = new vertex_attribute ~attribute_type:tex_attrib_type ~number_of_vertices:size_of_reindexed_buffer () in
 
       let norm_coords_attrib = new vertex_attribute ~attribute_type:(Vector3_kind Float32) ~number_of_vertices:size_of_reindexed_buffer () in
@@ -234,6 +242,7 @@ class model ~path ~with_tex_and_normals =
       else (
         let vertex_coords_attrib = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:nb_vertices () in
         vertex_coords_attrib#set_raw_data vert_coords;
+        (*If the model is loaded without normals and texture coordinates, they are set to empty bigarrays*)
         (nb_vertices, List.length vert_indices, vert_coords, empty_bigarray, empty_bigarray, vert_indices, [vertex_coords_attrib])
       ) in
 

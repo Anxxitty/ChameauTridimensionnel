@@ -7,7 +7,6 @@ let debug = ref false
 let debug_main_loop = ref false
 
 (*Note: as the logger function is used so often, labelled parameters are discarded here to improve readability*)
-
 let log_to_console log_type message = 
   match log_type with
   | Info -> print_endline ("INFO: "^message)
@@ -24,7 +23,7 @@ let init_logger ~enable_log_to_file ~log_file_path ~enable_debug ~enable_debug_m
       is_initialized := true;)
   else can_log_to_file := false; is_initialized := true
 
-(*Note: here '!' is not the binary negation operator but is the dereference operator from OCaml*)
+(*Note to self: '!' is not a binary negation operator but is the dereference operator in OCaml*)
 let log_to_file log_type message =
   if not !is_initialized then init_logger ~enable_log_to_file:true ~log_file_path:"log/latest_log.txt" ~enable_debug:false ~enable_debug_main_loop:false;
   if !can_log_to_file then match !file with
