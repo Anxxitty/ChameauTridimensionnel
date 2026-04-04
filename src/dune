@@ -1,4 +1,4 @@
 (executable
  (public_name ChameauTridimensionnel)
  (name main)
- (libraries ChameauTridimensionnel glfw-ocaml tgls.tgl3))
+ (libraries ChameauTridimensionnel glfw-ocaml tgls.tgl3 stb_image))

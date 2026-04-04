@@ -11,6 +11,11 @@ let rec parse_float_list data bigarray index = match data with
   | [] -> ()
   | a::q -> bigarray.{index} <- float_of_string a; parse_float_list q bigarray (index+1)
 
+let copy_vecn ba1 ba2 index1 index2 n =
+  for i=0 to (n-1) do
+    ba1.{n*index1+i} <- ba2.{n*index2+i}
+  done
+
 
 (*Returns a triplet of indices containing the processed data at the top of the indices*)
 (*Since it adds recursively at the beginning of the input indices, it effectively reverses the input unprocessed data*)
@@ -110,10 +115,10 @@ let parse source =
   
   let vert_indices,tex_indices,norm_indices = fill_bigarrays source 0 0 0 ([],[],[]) in
   (*returning*)
-  numberOfVertices, v, vt, vn, vert_indices, tex_indices, norm_indices
+  numberOfVertices, v, vt, vn, vert_indices, tex_indices, norm_indices, texCoordFormat
 
 
-class model ~path =
+class model ~path ~with_tex_and_normals =
   (*Reading the .obj file at 'path'*)
   (*Returns a list of strings containing each line of the .obj file*)
   let model_source =
@@ -135,41 +140,121 @@ class model ~path =
       [] in
   
   (*parsing the source*)
-  let nb_vertices, v, vt, vn, vert_indices, tex_indices, norm_indices =
+  let nb_vertices, vert_coords, tex_coords, norm_coords, vert_indices, tex_indices, norm_indices, tex_coord_format =
     try 
       parse (format_model_source model_source)
     with e ->
       logger Warning ("model: Failed to parse model at path \""^path^"\". The file may contain unsupported .obj formatting. Try exporting it with Blender for consistent syntax.");
-      let empty_bigarray = create_bigarray Float32 0 0 in
-      0, empty_bigarray, empty_bigarray, empty_bigarray, [], [], [] in
+      0, empty_bigarray, empty_bigarray, empty_bigarray, [], [], [], 0 in
+
+  (*reindexing*)
+  (*face data in .obj is stored as vertex_coord/tex_coord/norm while in OpenGL, one vertex must contain (vertex_coord,tex_coord,norm_coord) and there is only one vertex index*)
+  (*thus if the extracted data will be used with texture coordinates and normals, it needs to be reindexed so that each vertex has its own texture and normal coordinates*)
+  let nb_vertices_after_reindexing, nb_drawn_vertices, vert_coords_after_reindexing, tex_coords_after_reindexing, norm_coords_after_reindexing, index, vertex_attributes =
+    if with_tex_and_normals then (
+      (*A unique index list is created, it contains vector-like quadruples (v,t,n,i)*)
+      (*v is for vertex index, t for texture index, n for normal index, and i for original place in the vertex index in the obj file*)
+      (*the v,t,n indices will be used to retrieve the correct data in the non-reindexed bigarrays*)
+      (*the i index will be used to put the final index in order, thus preserving faces*)
+      let rec build_vectorialized_indices_list acc i indices = match indices with
+          | ([],[],[]) -> acc
+          | (v::vert_ind, t::tex_ind, n::norm_ind) -> build_vectorialized_indices_list ((v,t,n,i)::acc) (i+1) (vert_ind,tex_ind,norm_ind)
+          | _ -> logger Error ("model: Incomplete texture or normal coordinates in file: \""^path^"\""); [] in
+
+      (*to sort the vectorialized index without touching to the i index*)
+      let compare_lexico (v,t,n,i) (v',t',n',i') =
+        if v > v' then 1 else if v < v' then -1
+        else if t > t' then 1 else if t < t' then -1
+        else if n > n' then 1 else if n < n' then -1
+        else 0 in
+      
+      (*to sort the final index with regards to i*)
+      let compare_first_el (i,data) (i',data') = if i > i' then 1 else if i < i' then -1 else 0 in 
+      
+      (*to extract the index out of the list of tuples containing (i, index)*)
+      let rec list_of_snd_el l = match l with
+        | [] -> []
+        | a::q -> snd a::list_of_snd_el q in
+      
+      (*sorts lexicographically the vectorialized index*)
+      (*that allows for efficient detection of vertices that need to be duplicated / ones that do not*)
+      let sorted_vectorialized_indices_list = List.sort compare_lexico (build_vectorialized_indices_list [] 0 (vert_indices,tex_indices,norm_indices)) in
+      
+      (*builds final vertex*)
+      let rec build_vertex_index vectorialized_indices same_as_previous acc index = match vectorialized_indices with
+        | [] -> list_of_snd_el (List.sort compare_first_el acc), (index+1)
+        | [(v,t,n,i)] -> if same_as_previous then build_vertex_index [] false ((i,index)::acc) index else build_vertex_index [] false ((i,index+1)::acc) (index+1)
+        | (v,t,n,i)::next::q ->
+            let same_as_next = (compare_lexico (v,t,n,i) next = 0) in
+            if same_as_previous then build_vertex_index (next::q) same_as_next ((i,index)::acc) index
+            else build_vertex_index (next::q) same_as_next ((i,index+1)::acc) (index+1) in
+          
+      (*same_as_previous is initialized as true so that the first index does not start at 1*)
+      let processed_vertex_index, size_of_reindexed_buffer = build_vertex_index sorted_vectorialized_indices_list true [] 0 in
+          
+      let reindexed_vertex_coords = create_bigarray Float32 size_of_reindexed_buffer 4 in
+      let reindexed_tex_coords = create_bigarray Float32 size_of_reindexed_buffer tex_coord_format in
+      let reindexed_norm_coords = create_bigarray Float32 size_of_reindexed_buffer 3 in
+          
+      let rec fill_reindexed_buffers vectorialized_indices same_as_previous data_index = match vectorialized_indices with
+        | [] -> ()
+        | [(v,t,n,i)] -> if same_as_previous then () else (
+            copy_vecn reindexed_vertex_coords vert_coords data_index v 4;
+            copy_vecn reindexed_tex_coords tex_coords data_index t tex_coord_format;
+            copy_vecn reindexed_norm_coords norm_coords data_index n 3
+        )
+        | (v,t,n,i)::next::q -> let same_as_next = (compare_lexico (v,t,n,i) next = 0) in
+            if same_as_previous then fill_reindexed_buffers (next::q) same_as_next data_index
+            else (
+              copy_vecn reindexed_vertex_coords vert_coords data_index v 4;
+              copy_vecn reindexed_tex_coords tex_coords data_index t tex_coord_format;
+              copy_vecn reindexed_norm_coords norm_coords data_index n 3;
+              fill_reindexed_buffers (next::q) same_as_next (data_index+1)
+            ) in
+      
+      fill_reindexed_buffers sorted_vectorialized_indices_list false 0;
   
-  (*creating OpenGL buffers containing the model*)
-  let vertex_coords_attrib = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:nb_vertices () in
+      (*creating OpenGL buffers containing the model*)
+      let vertex_coords_attrib = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:size_of_reindexed_buffer () in
+      
+      let tex_attrib_type = match tex_coord_format with
+        | 1 -> Vector1_kind Float32
+        | 2 -> Vector2_kind Float32
+        | 3 -> Vector3_kind Float32
+        | _ -> Vector4_kind Float32 (*Let's hope this never happens (it souldn't in well formatted .obj files)*) in
+      let tex_coords_attrib = new vertex_attribute ~attribute_type:tex_attrib_type ~number_of_vertices:size_of_reindexed_buffer () in
 
+      let norm_coords_attrib = new vertex_attribute ~attribute_type:(Vector3_kind Float32) ~number_of_vertices:size_of_reindexed_buffer () in
+      
+      vertex_coords_attrib#set_raw_data reindexed_vertex_coords;
+      tex_coords_attrib#set_raw_data reindexed_tex_coords;
+      norm_coords_attrib#set_raw_data reindexed_norm_coords;
+
+      (size_of_reindexed_buffer, List.length processed_vertex_index, reindexed_vertex_coords, reindexed_tex_coords, reindexed_norm_coords, processed_vertex_index, [vertex_coords_attrib;tex_coords_attrib;norm_coords_attrib]) )
+      else (
+        let vertex_coords_attrib = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:nb_vertices () in
+        vertex_coords_attrib#set_raw_data vert_coords;
+        (nb_vertices, List.length vert_indices, vert_coords, empty_bigarray, empty_bigarray, vert_indices, [vertex_coords_attrib])
+      ) in
+
+  
   let ebo = new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned in
-  let () = (
-    ebo#write_element_buffer ~indices:vert_indices ~usage:Gl.static_draw;
-    vertex_coords_attrib#set_raw_data v
-  ) in
+  let () = ebo#write_element_buffer ~index ~usage:Gl.static_draw in
 
-  let vao = new vertex_array ~kind:Float32 ~vertex_attributes:[vertex_coords_attrib] ~element_buffer:ebo ~drawing_type:Gl.static_draw in
+  let vao = new vertex_array ~kind:Float32 ~vertex_attributes ~element_buffer:ebo ~drawing_type:Gl.static_draw in
 
   object (self)
-    val _number_of_vertices = nb_vertices
-    val _number_of_drawn_vertices = List.length vert_indices
-    val _vertex_coordinates = v
-    val _texture_coordinates = vt
-    val _normal_coordinates = vn
-    val _vertex_indices = vert_indices
-    val _texture_indices = tex_indices
-    val _normal_indices = norm_indices
+    val _number_of_vertices = nb_vertices_after_reindexing
+    val _number_of_drawn_vertices = nb_drawn_vertices
+    val _vertex_coordinates = vert_coords_after_reindexing
+    val _texture_coordinates = tex_coords_after_reindexing
+    val _normal_coordinates = norm_coords_after_reindexing
+    val _vertex_index = index
     val _vao = vao
     method get_vertex_coordinates = _vertex_coordinates
     method get_texture_coordinates = _texture_coordinates
     method get_normal_coordinates = _normal_coordinates
-    method getuvertex_indices = _vertex_indices
-    method get_texture_indices = _texture_indices
-    method get_normal_indices = _normal_indices
+    method get_vertex_index = _vertex_index
     method get_number_of_vertices = _number_of_vertices
     method get_number_of_drawn_vertices = _number_of_drawn_vertices
     method get_vao = _vao

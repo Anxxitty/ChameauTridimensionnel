@@ -1,11 +1,11 @@
 #version 330 core
 layout (location = 0) in vec4 pos;
-out vec4 color;
+layout (location = 1) in vec2 i_tex_coord;
+out vec2 tex_coord;
 uniform mat4 model_matrix;
 uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
-uniform float time;
 void main() {
     gl_Position = projection_matrix *  view_matrix * model_matrix * pos;
-    color = vec4(pow(cos(pos.x+(10*time)),2), pow(cos(2*pos.y+(5*time)),2), pow(sin(10*pos.z+(60*time)),2), 1.0);
+    tex_coord = i_tex_coord;
 }

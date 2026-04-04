@@ -126,14 +126,14 @@ class ['a, 'b] buffer ~buffer_type ~(kind : ('a, 'b) kind) =
     (*[Vertex1;      Vertex2      ...]*)
     (*[pos;  color;  pos;  color  ...]*)
     (*[x,y,z,r,g,b,a,x,y,z,r,g,b,a...]*)
-    method write_element_buffer ~(indices : 'a list) ~(usage : int) =
+    method write_element_buffer ~(index : 'a list) ~(usage : int) =
       logger Debug "buffer: Copying data into a buffer through write_element_buffer.";
-      let len = List.length indices in
+      let len = List.length index in
       let ba = create_bigarray _kind 1 len in
       let rec fill l i = match l with
         | [] -> ba
         | a::q -> (ba.{i} <- a); fill q (i+1)
-      in let data = fill indices 0 in
+      in let data = fill index 0 in
       self#write_raw_data ~size:(Gl.bigarray_byte_size data) ~data ~usage
     method write_vertex_attributes ~(vertex_attributes : (('a, 'b) vertex_attribute) list) ~(usage : int) =
       logger Debug "buffer: Copying data into a buffer through write_vertex_attributes.";
@@ -290,7 +290,8 @@ class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader
       _shader_program <- shader_program
     (*other methods*)
     method render ~(window : window) ~(uniforms : uniform list) =
-      logger Debug_main_loop "drawable: Rendering a drawable.";
+      (*logger Debug_main_loop "drawable: Rendering a drawable.";*)
+      _shader_program#use ();
       _vertex_array#bind ();
       let rec uniform_setter l = match l with
         | [] -> ()

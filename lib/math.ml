@@ -1,7 +1,7 @@
 open Bigarray
 
 (*Math helpers*)
-let pi = 3.141592653589793115997963468544185161590576171875
+let pi = Float.pi
 
 let rad_of_deg angle =
   angle*.pi/.180.

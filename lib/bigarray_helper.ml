@@ -37,9 +37,18 @@ let bigarray_of_matrix4f ((a, b, c, d) : float matrix4) =
   set_vector4 bigarray 3 d.x d.y d.z d.w;
   bigarray
 
+ let empty_bigarray = create_bigarray Float32 0 0
+
 let string_of_float_bigarray ?(new_line=10) ba size =
   let rec aux i j =
     if j = new_line then "\n"^aux i 0 else
     if i = (size - 1) then string_of_float ba.{i}^" ]"
     else string_of_float ba.{i}^", "^aux (i+1) (j+1)
+  in "[ "^aux 0 0
+
+let string_of_int_bigarray ?(new_line=10) ba size =
+  let rec aux i j =
+    if j = new_line then "\n"^aux i 0 else
+    if i = (size - 1) then string_of_int ba.{i}^" ]"
+    else string_of_int ba.{i}^", "^aux (i+1) (j+1)
   in "[ "^aux 0 0

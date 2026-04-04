@@ -14,6 +14,18 @@ class input_handler ~(key : GLFW.key) ~(press_callback : (unit -> unit)) ~(relea
           then (_release_callback (); _is_pressed <- false)
   end
 
+class toggle_input_handler ~(key : GLFW.key) ~(toggle_on_callback : (unit -> unit)) ~(toggle_off_callback : (unit -> unit)) =
+  object (self)
+    inherit input_handler ~key ~press_callback:toggle_on_callback ~release_callback:toggle_off_callback
+    val mutable _is_toggled = false
+    method! process ~(window : GLFW.window) =
+      if GLFW.getKey ~window ~key:_key then (if not _is_pressed then
+        if not _is_toggled then (_press_callback (); _is_toggled <- true)
+        else (_release_callback (); _is_toggled <- false);
+        _is_pressed <- true)
+      else if _is_pressed then _is_pressed <- false
+  end
+
 class window ~width ~height ~name =
 
   let aspect_ratio = ref (float_of_int width/.float_of_int height) in
@@ -96,6 +108,9 @@ class window ~width ~height ~name =
         _last_cursor_x <- x_pos;
         _last_cursor_y <- y_pos in
       let _ = GLFW.setCursorPosCallback ~window:_glfw_window ~f:(Some glfw_callback) in ()
+    
+    method register_scroll_callback (scroll_callback : (float -> float -> unit)) =
+      let _ =GLFW.setScrollCallback ~window:_glfw_window ~f:(Some (fun win -> scroll_callback)) in ()
 
     method get_input_handlers =
       _input_handlers
@@ -134,6 +149,14 @@ class window ~width ~height ~name =
     
     method is_cursor_shown =
       _is_cursor_shown
+    
+    method enable_fullscreen () =
+      let monitor = GLFW.getPrimaryMonitor () in
+      let mode = GLFW.getVideoMode ~monitor in
+      GLFW.setWindowMonitor ~window:_glfw_window ~monitor:(Some monitor) ~xpos:0 ~ypos:0 ~width:mode.width ~height:mode.height ~refreshRate:(Some mode.refresh_rate);
+  
+    method disable_fullscreen () =
+      GLFW.setWindowMonitor ~window:_glfw_window ~monitor:None ~xpos:0 ~ypos:0 ~width ~height ~refreshRate:None
 
     method render () =
       let timestamp = GLFW.getTime () in

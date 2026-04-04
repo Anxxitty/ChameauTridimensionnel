@@ -1,3 +1,3 @@
 (library
  (name ChameauTridimensionnel)
- (libraries tgls.tgl3 glfw-ocaml))
+ (libraries tgls.tgl3 glfw-ocaml stb_image))

@@ -22,7 +22,8 @@
  (depends 
     ocaml
     tgls
-    glfw-ocaml)
+    glfw-ocaml
+    stb_image)
  (tags
   ("add topics" "to describe" your project)))
 
