@@ -7,5 +7,5 @@ uniform sampler2D texture1;
 uniform float time;
 
 void main() {
-    frag_color = vec4(vec3(texture(texture1, tex_coord) * mix((0.2+dot(vec3(0.0,1.0,0.0), norm)),1,pow(cos(time),2))),1.0);
+    frag_color = vec4(0.0,1.0,0.0,0.2);
 }

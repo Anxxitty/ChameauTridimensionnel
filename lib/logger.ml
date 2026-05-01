@@ -9,11 +9,11 @@ let debug_main_loop = ref false
 (*Note: as the logger function is used so often, labelled parameters are discarded here to improve readability*)
 let log_to_console log_type message = 
   match log_type with
-  | Info -> print_endline ("INFO: "^message)
-  | Warning -> print_endline ("WARNING: "^message)
-  | Error -> print_endline ("ERROR: "^message)
-  | Debug -> if !debug then print_endline ("DEBUG: "^message)
-  | Debug_main_loop -> if !debug_main_loop then print_endline ("DEBUG: "^message)
+  | Info -> print_endline ("\o033[0mINFO: "^message^"\o033[0m")
+  | Warning -> print_endline ("\o033[33mWARNING: "^message^"\o033[0m")
+  | Error -> print_endline ("\o033[31mERROR: "^message^"\o033[0m")
+  | Debug -> if !debug then print_endline ("\o033[34mDEBUG: "^message^"\o033[0m")
+  | Debug_main_loop -> if !debug_main_loop then print_endline ("\o033[34mDEBUG: "^message^"\o033[0m")
 
 let init_logger ~enable_log_to_file ~log_file_path ~enable_debug ~enable_debug_main_loop = debug := enable_debug; debug_main_loop := enable_debug_main_loop; if enable_log_to_file
   then ((

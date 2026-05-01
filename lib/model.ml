@@ -3,7 +3,7 @@ open Tgl3
 open Math
 open Bigarray
 open Graphics
-open Bigarray_helper
+open Data_structures
 
 
 (*Helper parse functions*)
@@ -55,7 +55,7 @@ let parse_face_quads data (vert_indices,tex_indices,norm_indices) =
 let rec format_model_source model_source = match model_source with
   | [] -> []
   | a::q ->
-    if (String.starts_with ~prefix:"v" a || String.starts_with ~prefix:"vt" a || String.starts_with ~prefix:"vn" a || String.starts_with ~prefix:"f" a)
+    if (String.starts_with ~prefix:"v" a || String.starts_with ~prefix:"vt" a || String.starts_with ~prefix:"vn" a || String.starts_with ~prefix:"f" a || String.starts_with ~prefix:"usemtl" a)
     then (
       let split_line = String.split_on_char ' ' (String.trim a) in (*removing leading and trailing whitespaces, splitting on whitespaces*)
       (*removes empty strings created by String.split_on_char when there are successive whitespaces*)
@@ -78,14 +78,14 @@ let parse source =
               (*If a vt element is longer than tex_coord_format + 1 (+1 for the "vt") it means we've reached a vt with strictly more coordinates than the previous one -> we need to increase the tex_coord_format*)
               else if (List.hd a) = "vt" then determine_bigarray_sizes q nb_vertices nb_normals (nb_tex_coords+1) (if List.length a > (tex_coord_format + 1) then tex_coord_format + 1 else tex_coord_format)
               else determine_bigarray_sizes q nb_vertices nb_normals nb_tex_coords tex_coord_format in
-  let numberOfVertices, numberOfNormals, numberOfTexCoords, texCoordFormat = determine_bigarray_sizes source 0 0 0 1 in
-  let v = create_bigarray Float32 numberOfVertices 4 in
-  let vn = create_bigarray Float32 numberOfNormals 3 in
-  let vt = create_bigarray Float32 numberOfTexCoords texCoordFormat in
+  let number_of_vertices, number_of_normals, number_of_tex_coords, tex_coord_format = determine_bigarray_sizes source 0 0 0 1 in
+  let v = create_bigarray Float32 number_of_vertices 4 in
+  let vn = create_bigarray Float32 number_of_normals 3 in
+  let vt = create_bigarray Float32 number_of_tex_coords tex_coord_format in
 
   (*parsing*)
-  let rec fill_bigarrays source v_index vt_index vn_index (vert_indices,tex_indices,norm_indices) = match source with (*v_index vn_index and vt_index represent where we are writing in the bigarray*)
-    | [] -> (List.rev vert_indices),(List.rev tex_indices),(List.rev norm_indices) (*we reverse the lists because new faces were added in front, and in reverse because of how parse_face_triangles works*)
+  let rec fill_bigarrays source v_index vt_index vn_index (vert_indices,tex_indices,norm_indices) material_index material_names = match source with (*v_index vn_index and vt_index represent where we are writing in the bigarray*)
+    | [] -> (List.rev vert_indices),(List.rev tex_indices),(List.rev norm_indices),material_index,material_names (*we reverse the lists because new faces were added in front, and in reverse because of how parse_face_triangles works*)
     | a::q -> (
       let prefix = List.hd a in
       let data = List.tl a in
@@ -94,28 +94,30 @@ let parse source =
       if prefix = "v" then (
         parse_float_list data v v_index;
         if data_length = 3 then v.{v_index + 3} <- 1.0; (*if the w coordinate was ommitted it gets defaulted to 1.0*)
-        fill_bigarrays q (v_index+4) vt_index vn_index (vert_indices,tex_indices,norm_indices))
+        fill_bigarrays q (v_index+4) vt_index vn_index (vert_indices,tex_indices,norm_indices) material_index material_names)
       else if prefix = "vt" then (
         parse_float_list data vt vt_index;
-        if data_length < texCoordFormat then (*if the v or w coordinates were ommitted they get defaulted to 0.0*)
-          for i = 0 to (texCoordFormat - data_length) do
+        if data_length < tex_coord_format then (*if the v or w coordinates were ommitted they get defaulted to 0.0*)
+          for i = 0 to (tex_coord_format - data_length) do
             vt.{vt_index + data_length + i} <- 0.0
           done;
-        fill_bigarrays q v_index (vt_index+texCoordFormat) vn_index (vert_indices,tex_indices,norm_indices))
+        fill_bigarrays q v_index (vt_index+tex_coord_format) vn_index (vert_indices,tex_indices,norm_indices) material_index material_names)
       else if prefix = "vn" then (
         parse_float_list data vn vn_index;
-        fill_bigarrays q v_index vt_index (vn_index+3) (vert_indices,tex_indices,norm_indices))
+        fill_bigarrays q v_index vt_index (vn_index+3) (vert_indices,tex_indices,norm_indices) material_index material_names)
       else if prefix = "f" then (
-        let vertIndices,texIndices,normIndices =
+        let new_vert_indices,new_tex_indices,new_norm_indices =
           if data_length = 4 then parse_face_quads data (vert_indices,tex_indices,norm_indices)
           else if data_length = 3 then parse_face_triangles data (vert_indices,tex_indices,norm_indices)
           else (vert_indices,tex_indices,norm_indices) in
-        fill_bigarrays q v_index vt_index vn_index (vertIndices,texIndices,normIndices))
-      else fill_bigarrays q v_index vt_index vn_index (vert_indices,tex_indices,norm_indices)) in (*if a line not matching the supported prefixes slipped in input data, it just gets ignored*)
+        fill_bigarrays q v_index vt_index vn_index (new_vert_indices,new_tex_indices,new_norm_indices) material_index material_names)
+      else if prefix = "usemtl" then
+        fill_bigarrays q v_index vt_index vn_index (vert_indices,tex_indices,norm_indices) (List.length vert_indices::material_index) ((List.hd data)::material_names)
+      else fill_bigarrays q v_index vt_index vn_index (vert_indices,tex_indices,norm_indices) material_index material_names) in (*if a line not matching the supported prefixes slipped in input data, it just gets ignored*)
   
-  let vert_indices,tex_indices,norm_indices = fill_bigarrays source 0 0 0 ([],[],[]) in
+  let vert_indices,tex_indices,norm_indices,material_index,material_names = fill_bigarrays source 0 0 0 ([],[],[]) [] [] in
   (*returning*)
-  numberOfVertices, v, vt, vn, vert_indices, tex_indices, norm_indices, texCoordFormat
+  number_of_vertices, v, vt, vn, vert_indices, tex_indices, norm_indices, tex_coord_format, material_index, (List.rev material_names)
 
 
 class model ~path ~with_tex_and_normals =
@@ -140,25 +142,27 @@ class model ~path ~with_tex_and_normals =
       [] in
   
   (*parsing the source*)
-  let nb_vertices, vert_coords, tex_coords, norm_coords, vert_indices, tex_indices, norm_indices, tex_coord_format =
+  let nb_vertices, vert_coords, tex_coords, norm_coords, vert_indices, tex_indices, norm_indices, tex_coord_format, material_index, material_names =
     try 
       parse (format_model_source model_source)
     with e ->
       logger Warning ("model: Failed to parse model at path \""^path^"\". The file may contain unsupported .obj formatting. Try exporting it with Blender for consistent syntax.");
-      0, empty_bigarray, empty_bigarray, empty_bigarray, [], [], [], 0 in
-
+      0, empty_bigarray, empty_bigarray, empty_bigarray, [], [], [], 0, [], [] in
+  
   (*reindexing*)
   (*face data in .obj is stored as vertex_coord/tex_coord/norm while in OpenGL, one vertex must contain (vertex_coord,tex_coord,norm_coord) and there is only one vertex index*)
-  (*thus if the extracted data will be used with texture coordinates and normals, it needs to be reindexed so that each vertex has its own texture and normal coordinates*)
+  (*thus if the extracted data is to be used with texture coordinates and normals, it needs to be reindexed so that each vertex has its own texture and normal coordinates*)
   let nb_vertices_after_reindexing, nb_drawn_vertices, vert_coords_after_reindexing, tex_coords_after_reindexing, norm_coords_after_reindexing, index, vertex_attributes =
     if with_tex_and_normals then (
-      (*A unique index list is created, it contains vector-like quadruples (v,t,n,i)*)
+      (*A unique index list is created, it contains vector-like quadruplets (v,t,n,i)*)
       (*v is for vertex index, t for texture index, n for normal index, and i for original place in the vertex index in the obj file*)
+      (*mi stores the current used material*)
       (*the v,t,n indices will be used to retrieve the correct data in the non-reindexed bigarrays*)
       (*the i index will be used to put the final index in order, thus preserving faces*)
       let rec build_vectorialized_indices_list acc i indices = match indices with
           | ([],[],[]) -> acc
-          | (v::vert_ind, t::tex_ind, n::norm_ind) -> build_vectorialized_indices_list ((v,t,n,i)::acc) (i+1) (vert_ind,tex_ind,norm_ind)
+          | (v::vert_ind, t::tex_ind, n::norm_ind) -> 
+            build_vectorialized_indices_list ((v,t,n,i)::acc) (i+1) (vert_ind,tex_ind,norm_ind)
           | _ -> logger Error ("model: Incomplete texture or normal coordinates in file: \""^path^"\""); [] in
 
       (*to sort the vectorialized index without touching to the i index*)
@@ -246,28 +250,65 @@ class model ~path ~with_tex_and_normals =
         (nb_vertices, List.length vert_indices, vert_coords, empty_bigarray, empty_bigarray, vert_indices, [vertex_coords_attrib])
       ) in
 
+  (*slicing into multiple EBOs to allow for multi-material objects*)
+  let rec slice_index ind i sliced_ind = match ind with
+      | [] -> sliced_ind
+      | a::q -> if List.mem i material_index
+          then slice_index q (i+1) ([a]::sliced_ind)
+          else let init_sliced_ind = match sliced_ind with
+            | [] -> [[]] (*allows for .obj files that do not use 'usemtl' at all*)
+            | a::q -> sliced_ind 
+          in slice_index q (i+1) ((a::(List.hd init_sliced_ind))::(List.tl init_sliced_ind))
+  in let rev_indices = slice_index index 0 [] in
+  let indices = List.map List.rev rev_indices in
+
+  let rec generate_opengl_objects ind ebos vaos = match ind with
+    | [] -> ebos, vaos
+    | a::q -> (
+      let ebo = new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned in
+      ebo#write_element_buffer ~index:a ~usage:Gl.static_draw;
+      let vao = new vertex_array ~kind:Float32 ~vertex_attributes ~element_buffer:ebo ~number_of_drawn_vertices:(List.length a) ~drawing_type:Gl.static_draw in
+      generate_opengl_objects q (ebo::ebos) (vao::vaos)
+    ) in
   
-  let ebo = new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned in
-  let () = ebo#write_element_buffer ~index ~usage:Gl.static_draw in
+  let ebos, vaos = generate_opengl_objects indices [] [] in
 
-  let vao = new vertex_array ~kind:Float32 ~vertex_attributes ~element_buffer:ebo ~drawing_type:Gl.static_draw in
-
+  let nb_submeshes = List.length vaos in
+  let slot_names =
+    if List.length material_names > nb_submeshes then (
+      List.take nb_submeshes material_names
+    ) else if List.length material_names < nb_submeshes then (
+      List.append material_names (List.init (nb_submeshes - (List.length material_names)) (fun x -> string_of_int x))
+    ) else material_names in
+  
+  let dummy_vao = new vertex_array ~kind:Float32 ~vertex_attributes:[] ~element_buffer:(new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned) ~number_of_drawn_vertices:0 ~drawing_type:Gl.static_draw in
+  let vaos_array = new named_array ~nb_of_slots:nb_submeshes ~slot_names ~default_content:dummy_vao ~contents:vaos () in
+  
   object (self)
-    val _number_of_vertices = nb_vertices_after_reindexing
-    val _number_of_drawn_vertices = nb_drawn_vertices
+    val _tot_number_of_vertices = nb_vertices_after_reindexing
+    val _tot_number_of_drawn_vertices = nb_drawn_vertices
     val _vertex_coordinates = vert_coords_after_reindexing
     val _texture_coordinates = tex_coords_after_reindexing
     val _normal_coordinates = norm_coords_after_reindexing
-    val _vertex_index = index
-    val _vao = vao
+    val _unsliced_vertex_index = index
+    val _vaos = vaos_array
+    val _material_slot_names = slot_names
     method get_vertex_coordinates = _vertex_coordinates
     method get_texture_coordinates = _texture_coordinates
     method get_normal_coordinates = _normal_coordinates
-    method get_vertex_index = _vertex_index
-    method get_number_of_vertices = _number_of_vertices
-    method get_number_of_drawn_vertices = _number_of_drawn_vertices
-    method get_vao = _vao
+    method get_unsliced_vertex_index = _unsliced_vertex_index
+    method get_tot_nb_vertices = _tot_number_of_vertices
+    method get_tot_nb_drawn_vertices = _tot_number_of_drawn_vertices
+    method get_vaos = _vaos
+    method get_material_slot_names = _material_slot_names
+    method get_nb_material_slots = List.length _material_slot_names
     method delete () =
-      _vao#delete ();
-      ebo#delete ()
+      let rec del objs = match objs with
+        | [] -> ()
+        | a::q -> a#delete (); del q in
+      del ebos;
+      let rec del_arr names = match names with
+        | [] -> ()
+        | a::q -> ((_vaos#get_content ~name:a)#delete (); del_arr q) in
+      del_arr (_vaos#get_slot_names)
   end

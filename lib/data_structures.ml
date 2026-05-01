@@ -53,3 +53,47 @@ let string_of_int_bigarray ?(new_line=10) ba size =
     if i = (size - 1) then string_of_int ba.{i}^" ]"
     else string_of_int ba.{i}^", "^aux (i+1) (j+1)
   in "[ "^aux 0 0
+
+class ['a] named_array ~nb_of_slots ~(slot_names : string list) ~(default_content : 'a) ?(contents : 'a list option) () = 
+  let array = Array.make nb_of_slots ("", (default_content)) in
+  (*fills array with provided slot names and materials*)
+  let cont = match contents with
+    | None -> []
+    | Some l -> l in
+  let rec fill_array i names cont = match names,cont with
+    | [],[] -> if i <= nb_of_slots - 1 then logger Warning "named_array: the array was provided less slot names than the requested number of slots."
+    | [],a::q -> if i >= nb_of_slots then () else (
+        array.(i) <- ("", a); fill_array (i+1) [] q
+      )
+    | a::q,[] -> if i >= nb_of_slots then () else (
+        array.(i) <- (a, default_content); fill_array (i+1) q []
+      )
+    | a::q,b::v -> if i >= nb_of_slots then () else (
+        array.(i) <- (a, b); fill_array (i+1) q v
+      )
+  in let () = fill_array 0 slot_names cont in
+  object (self)
+      val _array = array
+      val _nb_of_slots = nb_of_slots
+      val _slot_names = slot_names
+      method get_nb_of_slots = _nb_of_slots
+      method get_slot_names = _slot_names
+      method get_default_content = default_content
+      method set_content ~name ~content =
+        let found = ref false in
+        for i = 0 to _nb_of_slots - 1 do
+          if fst _array.(i) = name
+            then (_array.(i) <- (name, content); found := true)
+        done;
+        if not !found then logger Warning ("named_array: set_content failed: slot \""^name^"\" was not found.")
+      method get_content ~name =
+        let cont = ref default_content in
+        let found = ref false in
+        for i = 0 to _nb_of_slots - 1 do
+          if fst _array.(i) = name
+            then (cont := snd _array.(i); found := true)
+        done;
+        if not !found then logger Warning ("named_array: get_content failed: slot \""^name^"\" was not found. Returning default content.");
+        !cont
+  end
+

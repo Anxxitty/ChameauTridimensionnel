@@ -4,8 +4,9 @@ open Shader
 open Logger
 open Window
 open Bigarray
-open Bigarray_helper
+open Data_structures
 open Tgl3
+open Materials
 
 let get_gl_type : type a b. ((a, b) kind -> int) = function
 | Int8_signed -> Gl.byte
@@ -180,7 +181,7 @@ class ['a, 'b] buffer ~buffer_type ~(kind : ('a, 'b) kind) =
       Gl.delete_buffers 1 (set_first_int _id)
   end
 
-class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_attribute) list) ~(element_buffer : (int, 'c) buffer) ~(drawing_type : int) =
+class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_attribute) list) ~(element_buffer : (int, 'c) buffer) ~(number_of_drawn_vertices : int) ~(drawing_type : int) =
   (*Generates the object's ID (it is a VAO)*)
   let id = get_first_int (Gl.gen_vertex_arrays 1) in
   (*Generates the VBO associated to our VAO*)
@@ -214,6 +215,7 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
   ) in
   object (self)
     val _id = id
+    val _number_of_drawn_vertices = number_of_drawn_vertices
     val mutable _number_of_vertices = number_of_vertices
     val mutable _vertex_buffer = vbo
     val mutable _element_buffer = element_buffer
@@ -222,6 +224,8 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
     (*getters and setters*)
     method get_id =
       _id
+    method get_number_of_drawn_vertices =
+      _number_of_drawn_vertices
     method get_number_of_vertices =
       _number_of_vertices
     method get_vertex_buffer =
@@ -273,124 +277,52 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
       _element_buffer#delete ()
   end
 
-(*Wrapper for OpenGL 2D texture object*)
-class texture ~path =
-  (*loads the texture with stb_image*)
-  let texture_image = Stb_image.load path in
-  let id = get_first_int (Gl.gen_textures 1) in
-
-  let () = (
-    (*setting default parameters for the texture*)
-    Gl.bind_texture Gl.texture_2d id;
-    Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_s Gl.repeat;
-    Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_t Gl.repeat;
-    Gl.tex_parameteri Gl.texture_2d Gl.texture_min_filter Gl.linear;
-    Gl.tex_parameteri Gl.texture_2d Gl.texture_mag_filter Gl.linear;
-    
-    (*checks if the image loading has been successful and loads the image in OpenGL accordingly*)
-    (*if image loading failed, the texture will default to all-black (default OpenGL behavior when no texture data is given)*)
-    (*Note: the ocaml binding of stb_image does not provide stbi_set_flip_vertically_on_load and I can't seem to get Stb_image.vflip to have any effect*)
-    (*Note: thus the UVs have to be flipped in the vertex shader, be careful !*)
-    match texture_image with
-      | Ok a -> (
-        let tex_format = match a.channels with
-          | 1 -> Gl.r8
-          | 2 -> Gl.rg
-          | 3 -> Gl.rgb
-          | 4 -> Gl.rgba
-          | _ -> logger Warning ("texture: Invalid number of channels for texture at path \""^path^"\"."); 0 in
-        if tex_format <> 0 then
-          Gl.tex_image2d Gl.texture_2d 0 tex_format a.width a.height 0 tex_format Gl.unsigned_byte (`Data a.data);
-        Gl.generate_mipmap Gl.texture_2d;
-      )
-      | Error e -> match e with `Msg e -> (logger Warning ("texture: Failed to load texture at path \""^path^"\". Error message: "^e));
-    
-    Gl.bind_texture Gl.texture_2d 0
-  ) in
-
-  object (self)
-    val _id = id
-    val _texture_image = texture_image 
-    method set_texture_filtering param = 
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_mag_filter param;
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_min_filter param
-    method set_mag_texture_filtering param =
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_mag_filter param
-    method set_min_texture_filtering param =
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_min_filter param
-    method set_texture_wrapping param =
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_s param;
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_t param
-    method set_texture_wrapping_s param =
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_s param
-    method set_texture_wrapping_t param =
-      Gl.tex_parameteri Gl.texture_2d Gl.texture_wrap_t param
-    method bind () =
-      Gl.bind_texture Gl.texture_2d _id
-    method unbind () =
-      Gl.bind_texture Gl.texture_2d 0
-    method delete () =
-      Gl.delete_textures 1 (set_first_int _id);
-  end
-
-
-class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader_program : shader_program) ~(number_of_drawn_vertices : int) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(material : material) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
   object (self)
     inherit movable ~scene_coordinates ~local_rotation ~scale
     val mutable _vertex_array = vertex_array
-    val mutable _shader_program = shader_program
-    val _number_of_drawn_vertices = number_of_drawn_vertices
+    val mutable _material = material
+    val _number_of_drawn_vertices = vertex_array#get_number_of_drawn_vertices
     (*getters and setters*)
     method get_vertex_array =
       _vertex_array
-    method get_shader_program =
-      _shader_program
+    method get_material =
+      _material
     method set_vertex_array (vertex_array : ('a, 'b, 'c) vertex_array) =
       _vertex_array <- vertex_array
-    method set_shader_program (shader_program : shader_program) =
-      _shader_program <- shader_program
+    method set_material (material : material) =
+      _material <- material
     (*other methods*)
     method render ~(window : window) ~(uniforms : uniform list) =
       (*logger Debug_main_loop "drawable: Rendering a drawable.";*)
-      _shader_program#use ();
       _vertex_array#bind ();
-      let rec uniform_setter l = match l with
-        | [] -> ()
-        | a::q -> (
-          _shader_program#set_uniform a;
-          uniform_setter q)
-      in uniform_setter uniforms;
+      _material#prep_render ~uniforms;
       (*apply local rotation, scale and scene position*)
       let model_matrix = translation_matrix4f _coordinates *::. scale_matrix4f _scale *::. (rotation_matrix4f_from_quat _rotation) in
-      _shader_program#set_uniform (Matrix_uniform4f ("model_matrix", model_matrix));
-      _shader_program#use ();
+      _material#get_shader_program#use ();
+      _material#get_shader_program#set_uniform (Matrix_uniform4f ("model_matrix", model_matrix));
       Gl.draw_elements Gl.triangles _number_of_drawn_vertices (get_gl_type _vertex_array#get_element_buffer#get_kind) (`Offset 0);
       _vertex_array#unbind ();
   end
 
-(*Same as a drawable but handles itself its textures*)
-(*Supports multiple textures with texture units*)
-(*Then texture uniforms are labelled texture0,texture1,...,texture15*)
-class ['a, 'b, 'c] textured_drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(shader_program : shader_program) ~(textures : texture list) ~(number_of_drawn_vertices : int) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_array) named_array) ~(materials : material_array) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+  let () = if vertex_arrays#get_nb_of_slots <> materials#get_nb_of_slots then logger Warning "multi_mesh_drawable: the number of slots in the material array does not match the number of sub-meshes in the drawable. This will probably lead to unwanted graphical effects." in
+  let vao_names = vertex_arrays#get_slot_names in
+  let rec gen_drawables vao_names = match vao_names with
+    | [] -> []
+    | a::q -> 
+        let vao = vertex_arrays#get_content ~name:a in
+        let mat = materials#get_content ~name:a in
+        (new drawable ~vertex_array:vao ~material:mat ~scene_coordinates ~local_rotation ~scale)::(gen_drawables q) in
+      
+  let drawables = gen_drawables vao_names in
   object (self)
-    inherit ['a, 'b, 'c] drawable ~vertex_array ~shader_program ~number_of_drawn_vertices ~scene_coordinates ~local_rotation ~scale as super
-    val mutable _textures = textures
-    method get_textures =
-      _textures
-    method set_textures texs =
-      _textures <- texs
-    method! render ~(window : window) ~(uniforms : uniform list) =
-      let rec bind_textures l i = match l with
+    inherit movable ~scene_coordinates ~local_rotation ~scale
+    val _drawables = drawables
+    method get_sub_drawables = _drawables
+    method render ~(window : window) ~(uniforms : uniform list) =
+      let rec iter_render dr = match dr with
         | [] -> ()
-        | a::q -> 
-          (*OpenGL does not provide more than 16 texture units*)
-          if i > 15 then logger Warning "textured_drawable: exceeded the maximum of 16 texture units. Some textures will not display correctly."
-          else (
-            Gl.active_texture (Gl.texture0 + i);
-            a#bind ();
-            _shader_program#set_uniform1i ~name:("texture"^(string_of_int i)) ~value:{x=1};
-            bind_textures q (i+1) 
-          ) in
-      bind_textures textures 0;
-      super#render ~window ~uniforms
+        | a::q -> a#render ~window ~uniforms; iter_render q in
+      iter_render _drawables
   end

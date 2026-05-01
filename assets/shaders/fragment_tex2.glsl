@@ -7,5 +7,5 @@ uniform sampler2D texture1;
 uniform sampler2D texture2;
 
 void main() {
-    frag_color = mix(texture(texture1, tex_coord), texture(texture2, tex_coord), 0.9);
+    frag_color = vec4(vec3(mix(texture(texture1, tex_coord), texture(texture2, tex_coord), 0.5)), 0.7);
 }

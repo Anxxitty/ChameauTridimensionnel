@@ -1,7 +1,7 @@
 open Tgl3
 open Bigarray
 open ChameauTridimensionnel
-open Bigarray_helper
+open Data_structures
 open Logger
 open Math
 open Graphics
@@ -9,17 +9,21 @@ open Window
 open Actor
 open Shader
 open Model
+open Materials
 
 (*Main function*)
 let () =
   (*Initialize logger*)
   let date = Unix.localtime (Unix.time ()) in
-  init_logger ~enable_log_to_file:false ~enable_debug:true ~enable_debug_main_loop:false ~log_file_path:("log/log_"^(string_of_int date.tm_mday)^"-"^(string_of_int (date.tm_mon+1))^"-"^(string_of_int (date.tm_year+1900))^"_"^(string_of_int date.tm_hour)^"h"^(string_of_int date.tm_min)^"min"^(string_of_int date.tm_sec)^"sec.txt");
+  init_logger ~enable_log_to_file:false ~enable_debug:false ~enable_debug_main_loop:false ~log_file_path:("log/log_"^(string_of_int date.tm_mday)^"-"^(string_of_int (date.tm_mon+1))^"-"^(string_of_int (date.tm_year+1900))^"_"^(string_of_int date.tm_hour)^"h"^(string_of_int date.tm_min)^"min"^(string_of_int date.tm_sec)^"sec.txt");
 
   (*Create a window*)
   logger Debug "Main: Initializing a window.";
   let window = new window ~width:1280 ~height:720 ~name:"WombatCombat" in
   window#hide_cursor ();
+
+  Gl.enable Gl.blend;
+  Gl.blend_func Gl.src_alpha Gl.one_minus_src_alpha;
 
   (*Wireframe mode*)(*
   Gl.polygon_mode Gl.front_and_back Gl.line;*)
@@ -32,10 +36,13 @@ let () =
   let hexagon_model = new model ~path:"assets/models/hexagon.obj" ~with_tex_and_normals:true in
   let table_model = new model ~path:"assets/models/table.obj" ~with_tex_and_normals:false in
   let torus_model = new model ~path:"assets/models/torus.obj" ~with_tex_and_normals:true in
-  let car_model = new model ~path:"assets/models/car.obj" ~with_tex_and_normals:true in
   let dirac_model = new model ~path:"assets/models/dirac.obj" ~with_tex_and_normals:false in
 
-  let car_texture = new texture ~path:"assets/textures/car_exterior.jpeg" in
+  let car_model = new model ~path:"assets/models/car.obj" ~with_tex_and_normals:true in
+
+
+  let car_ext_texture = new texture ~path:"assets/textures/car_exterior.jpeg" in
+  let car_int_texture = new texture ~path:"assets/textures/car_interior.jpeg" in
   let brick_texture = new texture ~path:"assets/textures/brick.png" in
 
   logger Debug "Main: Compiling and linking shader program for textured models.";
@@ -45,8 +52,22 @@ let () =
   let tex_shader = new shader_program ~vertex_shader ~fragment_shader:fragment_shader1 in
   let tex_shader2 = new shader_program ~vertex_shader ~fragment_shader:fragment_shader2 in
 
-  let tex_cube_drawable = new textured_drawable ~vertex_array:cube_model#get_vao ~shader_program:tex_shader2 ~textures:[brick_texture;car_texture] ~number_of_drawn_vertices:cube_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=5.0;y=5.0;z=5.0} in
-  let car_drawable = new textured_drawable ~vertex_array:car_model#get_vao ~shader_program:tex_shader ~textures:[car_texture] ~number_of_drawn_vertices:car_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=10.0;z=(-15.0)} ~local_rotation:identity_quat ~scale:{x=(0.1);y=(0.1);z=(0.1)} in
+  let frag_windows = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment_windows.glsl" in
+  let windows_shader = new shader_program ~vertex_shader ~fragment_shader:frag_windows in
+
+  let car_material_array = new material_array ~nb_of_slots:car_model#get_nb_material_slots ~slot_names:car_model#get_material_slot_names () in
+  let windows_material = new generic_material ~shader_program:windows_shader in
+  car_material_array#set_content ~name:"Windows_SG" ~content:windows_material;
+  let body_material = new textured_material ~shader_program:tex_shader ~textures:[car_ext_texture] in
+  car_material_array#set_content ~name:"Body_SG1" ~content:(body_material :> material);
+  let int_material = new textured_material ~shader_program:tex_shader ~textures:[car_int_texture] in
+  car_material_array#set_content ~name:"Interior_SG" ~content:(int_material :> material);
+
+  let cube_mat = new textured_material ~shader_program:tex_shader2 ~textures:[brick_texture;car_ext_texture] in
+  let cube_mat_arr = new material_array ~nb_of_slots:cube_model#get_nb_material_slots ~slot_names:cube_model#get_material_slot_names ~materials:[(cube_mat :> material)] () in
+
+  let tex_cube_drawable = new multi_mesh_drawable ~vertex_arrays:cube_model#get_vaos ~materials:cube_mat_arr ~scene_coordinates:{x=0.0;y=10.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=5.0;y=5.0;z=5.0} in
+  let car_drawable = new multi_mesh_drawable ~vertex_arrays:car_model#get_vaos ~materials:car_material_array ~scene_coordinates:{x=0.0;y=10.0;z=(-15.0)} ~local_rotation:identity_quat ~scale:{x=(0.1);y=(0.1);z=(0.1)} in
 
   (*Compiling shaders*)
   logger Debug "Main: Compiling and linking shader program for untextured models.";
@@ -54,6 +75,7 @@ let () =
   let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment.glsl" in
   let shader_program = new shader_program ~vertex_shader ~fragment_shader in
 
+  (*
   let cube_drawable = new drawable ~vertex_array:cube_model#get_vao ~shader_program ~number_of_drawn_vertices:cube_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=3.0;z=(-5.0)} ~local_rotation:identity_quat ~scale:{x=1.5;y=1.5;z=1.5} in
   let cat_initial_rot = rotation_quat ~axis:{x=1.0;y=0.0;z=0.0} ~angle:(rad_of_deg (-90.0)) in
   let cat_drawable = new drawable ~vertex_array:cat_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:cat_model#get_number_of_drawn_vertices ~scene_coordinates:{x=(-16.0);y=5.0;z=0.0} ~local_rotation:cat_initial_rot ~scale:{x=0.25;y=0.25;z=0.25} in
@@ -63,6 +85,29 @@ let () =
   let table_drawable = new drawable ~vertex_array:table_model#get_vao ~shader_program ~number_of_drawn_vertices:table_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=(-16.0);z=0.0} ~local_rotation:identity_quat ~scale:{x=0.25;y=0.25;z=0.25} in
   let torus_drawable = new drawable ~vertex_array:torus_model#get_vao ~shader_program:tex_shader ~number_of_drawn_vertices:torus_model#get_number_of_drawn_vertices ~scene_coordinates:{x=0.0;y=3.0;z=12.0} ~local_rotation:identity_quat ~scale:{x=3.0;y=3.0;z=3.0} in
   let dirac_drawable = new drawable ~vertex_array:dirac_model#get_vao ~shader_program ~number_of_drawn_vertices:dirac_model#get_number_of_drawn_vertices ~local_rotation:identity_quat ~scene_coordinates:{x=30.0;y=5.0;z=(-50.0)} ~scale:{x=1.0;y=1.0;z=1.0} in
+
+  let dirac = new drawable ~vertex_array:cube_model#get_vao ~shader_program ~number_of_drawn_vertices:cube_model#get_number_of_drawn_vertices ~scene_coordinates:{x=10.0;y=0.0;z=25.0} ~local_rotation:identity_quat ~scale:{x=1.0;y=1e38;z=1.0} in
+*)
+  (*trying to create a sky*)
+  let sky_pos = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:4 ~vector_list:[
+    Vector4 {x=(-1.0); y=(-1.0); z=0.99; w=1.0};
+    Vector4 {x=1.0; y=(-1.0); z=0.99; w=1.0};
+    Vector4 {x=1.0; y=1.0; z=0.99; w=1.0};
+    Vector4 {x=(-1.0); y=1.0; z=0.99; w=1.0}
+  ] () in
+
+  let sky_ebo = new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned in
+  sky_ebo#write_element_buffer ~index:[0;1;2;0;2;3] ~usage:Gl.static_draw;
+
+  let sky_vao = new vertex_array ~kind:Float32 ~vertex_attributes:[sky_pos] ~element_buffer:sky_ebo ~number_of_drawn_vertices:6 ~drawing_type:Gl.static_draw in
+
+  let vertex_shader = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"assets/shaders/sky_vert.glsl" in
+  let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/sky_frag.glsl" in
+  let sky_shader = new shader_program ~vertex_shader ~fragment_shader in
+
+  let sky_mat = new generic_material ~shader_program:sky_shader in
+
+  let sky_drawable = new drawable ~vertex_array:sky_vao ~material:sky_mat ~scene_coordinates:{x=0.0;y=0.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=1.0;y=1.0;z=1.0} in
 
   let camera = new fly_camera ~scene_coordinates:{x=0.0;y=10.0;z=(15.0)} ~fov:(rad_of_deg 45.0) ~near_plane:1.0 ~far_plane:1000.0 in
 
@@ -76,21 +121,23 @@ let () =
     let view_matrix = camera#gen_view_matrix in
     let proj_matrix = camera#gen_projection_matrix ~aspect_ratio in
     let uniforms = [Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)] in
-    cube_drawable#render ~window ~uniforms;
+    (*cube_drawable#render ~window ~uniforms;
     cat_drawable#render ~window ~uniforms;
     tie_drawable#render ~window ~uniforms;
     dark_vador_tie_drawable#render ~window ~uniforms;
     hexagon_drawable#render ~window ~uniforms;
     table_drawable#render ~window ~uniforms;
-    torus_drawable#render ~window ~uniforms;
+    torus_drawable#render ~window ~uniforms;*)
     tex_cube_drawable#render ~window ~uniforms;
     car_drawable#render ~window ~uniforms;
-    dirac_drawable#render ~window ~uniforms
+    (*dirac_drawable#render ~window ~uniforms;
+    dirac#render ~window ~uniforms*)
+    sky_drawable#render ~window ~uniforms:[]
     in
   
   let animation_tick time elapsed_time () =
     logger Debug_main_loop "Main: Moving drawables.";
-    let time = 2.*.time in 
+    (*let time = 2.*.time in 
     tie_drawable#get_coordinates.x <- 25.*.cos(time);
     tie_drawable#get_coordinates.z <- 25.*.sin(time);
     tie_drawable#set_rotation (rotation_quat ~axis:{x=0.0;y=1.0;z=0.0} ~angle:(-.time));
@@ -102,7 +149,7 @@ let () =
       camera#set_coordinates {x=(c.x-.25.0*.sin(time)) ; y=c.y ; z=(c.z+.25.0*.cos(time))};
       camera#set_rotation (quat_of_vec4 (vec4_scalar_op ( *. ) (-1.0) (vec4_of_quat (tie_drawable#get_rotation))));
       camera#rotate ~quat:(rotation_quat ~axis:{x=0.0;y=1.0;z=0.0} ~angle:0.)
-    ) else camera#tick ~elapsed_time in
+    ) else *)camera#tick ~elapsed_time in
   
   let tick time elapsed_time () = ()(*
     logger Info ("roll "^string_of_float (roll_of_rot_quat camera#get_rotation));
@@ -164,7 +211,9 @@ let () =
         logger Debug "Main: Exited the main loop, closing.";
         window#delete ();
         shader_program#delete ();
+        windows_shader#delete ();
         tex_shader#delete ();
+        tex_shader2#delete ();
         cat_model#delete ();
         cube_model#delete ();
         tie_model#delete ();
@@ -172,10 +221,11 @@ let () =
         hexagon_model#delete ();
         table_model#delete ();
         torus_model#delete ();
-        car_model#delete ();
         dirac_model#delete ();
         brick_texture#delete ();
-        car_texture#delete ();
+        car_model#delete ();
+        car_int_texture#delete ();
+        car_ext_texture#delete ();
         logger Info "Main: Successfully terminated GLFW. Exiting.")
       else
         loop ();

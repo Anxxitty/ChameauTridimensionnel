@@ -2,7 +2,7 @@ open Tgl3
 open Logger
 open Math
 open Bigarray
-open Bigarray_helper
+open Data_structures
 
 type uniform = Vector_uniform1f of string * (float vector1)
              | Vector_uniform1i of string * (int vector1)
@@ -53,7 +53,7 @@ class shader ~(shader_type : int) ~(shader_source_path : string) =
       let len = get_first_int (Gl.get_shaderiv shader_id Gl.info_log_length) in
       let infoLog = create_bigarray Char 1 len in
       Gl.get_shader_info_log shader_id len None infoLog;
-      logger Error "shader: Failed to compile shader. Compiler log below:";
+      logger Error ("shader: Failed to compile shader at path \""^shader_source_path^"\". Compiler log below:");
       logger Error (Gl.string_of_bigarray infoLog)
   in
   (*class definition*)
@@ -84,7 +84,7 @@ class shader_program ~(vertex_shader : shader) ~(fragment_shader : shader) =
       let len = get_first_int (Gl.get_programiv program_id Gl.info_log_length) in
       let info_log = create_bigarray Char 1 len in
       Gl.get_program_info_log program_id len None info_log;
-      logger Error "shaderProgram: Failed to link the shader program. Linker log below:";
+      logger Error "shader_program: Failed to link the shader program. Linker log below:";
       logger Error (Gl.string_of_bigarray info_log)
   in
   object (self)
