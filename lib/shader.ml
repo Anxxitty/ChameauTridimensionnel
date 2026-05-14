@@ -131,3 +131,10 @@ class shader_program ~(vertex_shader : shader) ~(fragment_shader : shader) =
     method delete () =
       Gl.delete_program id
   end
+
+let default_shader = new default ~init:(fun x -> (
+  let def_vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/default_vert.glsl" in
+  let def_frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/default_frag.glsl" in
+  let def_shader = new shader_program ~vertex_shader:def_vert ~fragment_shader:def_frag in
+  def_shader
+)) ~delete:(fun x -> x#delete ())

@@ -40,6 +40,12 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
     (*scales the object by the given vector*)
     method scale (scaling_vector : float vector3) =
       _scale <- vec3_op ( *. ) _scale scaling_vector
+    method copy_movable (mov : movable) =
+      _coordinates <- mov#get_coordinates;
+      _rotation <- mov#get_rotation;
+      _scale <- mov#get_scale;
+      _velocity_vector <- mov#get_velocity_vector;
+      _acceleration_vector <- mov#get_acceleration_vector
     (*cinematically updates the object*)
     method tick ~(elapsed_time : float) =
       self#translate (vec3_scalar_op ( *. ) elapsed_time _velocity_vector);

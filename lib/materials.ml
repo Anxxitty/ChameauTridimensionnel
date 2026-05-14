@@ -117,12 +117,36 @@ class textured_material ~shader_program ~(textures : texture list) =
 
 class material_array ~nb_of_slots ~(slot_names : string list) ?(materials : material list option) () =
   (*generates a default material to provide as initialisation value to the array*)
-  let def_vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/default_vert.glsl" in
-  let def_frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/default_frag.glsl" in
-  (*Note: this default shader lives indefinitely because it would be difficult to tell when to delete it except if I create a delete function for the material array, which would not have much sense...*)
-  (*Note: this is theoretically a memory leak, but it should not cause much of an issue except if someone repeatedly creates massive amounts of material arrays...*)
-  let def_shader = new shader_program ~vertex_shader:def_vert ~fragment_shader:def_frag in
-  let def_mat = new generic_material ~shader_program:def_shader in
+  let def_mat = new generic_material ~shader_program:(default_shader#get) in
   object (self)
     inherit [material] named_array ~nb_of_slots ~slot_names ~default_content:def_mat ~contents:(match materials with | Some a -> a | None -> []) ()
   end
+
+let texture_shader = new default ~init:(fun x ->(
+  let vertex_shader = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/3D_textured_mesh_vert.glsl" in
+  let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/3D_textured_mesh_frag.glsl" in
+  new shader_program ~vertex_shader ~fragment_shader
+)) ~delete:(fun x -> x#delete ())
+
+let make_3D_textured_mesh_material_array ~slot_names ~textures_paths =
+  let n = List.length slot_names in
+  let rec gen_tex tex_l = match tex_l with
+    | [] -> []
+    | b::v -> (new texture ~path:b)::(gen_tex v) in
+  let rec gen_mats texs_paths i mats = match texs_paths with
+    | [] -> mats
+    | [a] -> (
+      let texs = gen_tex a in
+      gen_mats
+        (if i <> (n-1) then (logger Warning "make_3D_textured_mesh_material_array: missing textures, defaulting to default texture."; (List.init (n-(i+2)) (fun x -> ["defaults/textures/default.png"]))) else []) 
+        (i+1) ((new textured_material ~shader_program:(texture_shader#get) ~textures:texs)::mats))
+    | a::q -> (
+      let texs = gen_tex a in
+      gen_mats q (i+1) ((new textured_material ~shader_program:(texture_shader#get) ~textures:texs)::mats))
+  in let mats = gen_mats textures_paths 0 [] in
+  new material_array ~nb_of_slots:n ~slot_names ~materials:((List.rev mats):>material list) ()
+
+
+let make_single_material_array ~slot_names ~material =
+  let n = List.length slot_names in
+  new material_array ~nb_of_slots:n ~slot_names ~materials:(List.init n (fun x -> material)) ()

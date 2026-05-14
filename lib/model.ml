@@ -4,6 +4,8 @@ open Math
 open Bigarray
 open Graphics
 open Data_structures
+open Materials
+open Shader
 
 
 (*Helper parse functions*)
@@ -85,7 +87,7 @@ let parse source =
 
   (*parsing*)
   let rec fill_bigarrays source v_index vt_index vn_index (vert_indices,tex_indices,norm_indices) material_index material_names = match source with (*v_index vn_index and vt_index represent where we are writing in the bigarray*)
-    | [] -> (List.rev vert_indices),(List.rev tex_indices),(List.rev norm_indices),material_index,material_names (*we reverse the lists because new faces were added in front, and in reverse because of how parse_face_triangles works*)
+    | [] -> (List.rev vert_indices),(List.rev tex_indices),(List.rev norm_indices),(List.rev material_index),(List.rev material_names) (*we reverse the lists because new faces were added in front, and in reverse because of how parse_face_triangles works*)
     | a::q -> (
       let prefix = List.hd a in
       let data = List.tl a in
@@ -117,7 +119,7 @@ let parse source =
   
   let vert_indices,tex_indices,norm_indices,material_index,material_names = fill_bigarrays source 0 0 0 ([],[],[]) [] [] in
   (*returning*)
-  number_of_vertices, v, vt, vn, vert_indices, tex_indices, norm_indices, tex_coord_format, material_index, (List.rev material_names)
+  number_of_vertices, v, vt, vn, vert_indices, tex_indices, norm_indices, tex_coord_format, (if material_index = [] then [0] else material_index), (if material_names = [] then ["material"] else material_names) (*if the obj file does not use materials, a default material slot is created, starting at index 0, called "material"*)
 
 
 class model ~path ~with_tex_and_normals =
@@ -147,6 +149,7 @@ class model ~path ~with_tex_and_normals =
       parse (format_model_source model_source)
     with e ->
       logger Warning ("model: Failed to parse model at path \""^path^"\". The file may contain unsupported .obj formatting. Try exporting it with Blender for consistent syntax.");
+      logger Debug ("model: parsing error: "^(Printexc.to_string e));
       0, empty_bigarray, empty_bigarray, empty_bigarray, [], [], [], 0, [], [] in
   
   (*reindexing*)
@@ -250,40 +253,56 @@ class model ~path ~with_tex_and_normals =
         (nb_vertices, List.length vert_indices, vert_coords, empty_bigarray, empty_bigarray, vert_indices, [vertex_coords_attrib])
       ) in
 
-  (*slicing into multiple EBOs to allow for multi-material objects*)
-  let rec slice_index ind i sliced_ind = match ind with
-      | [] -> sliced_ind
-      | a::q -> if List.mem i material_index
-          then slice_index q (i+1) ([a]::sliced_ind)
-          else let init_sliced_ind = match sliced_ind with
-            | [] -> [[]] (*allows for .obj files that do not use 'usemtl' at all*)
-            | a::q -> sliced_ind 
-          in slice_index q (i+1) ((a::(List.hd init_sliced_ind))::(List.tl init_sliced_ind))
-  in let rev_indices = slice_index index 0 [] in
-  let indices = List.map List.rev rev_indices in
+  (*the material_names list contains what material is used for all faces between two adjacent indices in material_index*)
+  (*the same material can be used multiple times for different parts of a mesh*)
+  (*therefore material_names does not describe the unique material slots used to group all vertices that can be drawn at the same time (basically vertices that have the same material)*)
+  (*material_slots is the list that describes these unique mesh slots for each material used*)
+  let rec rem_duplicates l acc = match l with
+    | [] -> List.rev acc
+    | a::q -> if List.mem a acc
+      then rem_duplicates q acc
+      else rem_duplicates q (a::acc) in
+  let material_slots = rem_duplicates material_names [] in
 
-  let rec generate_opengl_objects ind ebos vaos = match ind with
-    | [] -> ebos, vaos
+  (*using material_slots, an array containing each submesh is created (a submesh is represented by its face index)*)
+  let sliced_indices_array = new named_array ~nb_of_slots:(List.length material_slots) ~slot_names:material_slots ~default_content:[] () in
+
+  (*the array is filled by slicing the face index representing the whole object at the indices in material_index*)
+  (*these indices represent where there was an occurence of "usemtl", so a change in material*)
+  (*up until the next encounter of an index in material_index, the faces get added to the material slot correponding to the material in use (which is indicated by the list material_names)*)
+  let rec slice_index ind i mats = match ind with
+    | [] -> ()
     | a::q -> (
+      let mat = List.hd mats in
+      let index = sliced_indices_array#get_content ~name:(mat) in
+      sliced_indices_array#set_content ~name:(mat) ~content:(a::index);
+      slice_index q (i+1) (if (List.mem (i+1) material_index) then (if List.tl mats = [] then mats else List.tl mats) else mats)
+    ) in let () = slice_index index 0 material_names in
+  
+  let rec reverse_sliced_index mats = match mats with
+    | [] -> ()
+    | mat::q -> (
+      let index = sliced_indices_array#get_content ~name:(mat) in
+      sliced_indices_array#set_content ~name:(mat) ~content:(List.rev index);
+      reverse_sliced_index q
+    ) in let () = reverse_sliced_index material_slots in (*when sliced, index lists are reversed, so they are reversed back so that faces are drawn in the right order*)
+
+
+  let rec generate_opengl_objects slots ebos vaos = match slots with
+    | [] -> List.rev ebos, List.rev vaos (*reversed so that they are in the same order as material_slots*) (*otherwise the wrong vaos would be associated to the wrong material slots*)
+    | a::q -> (
+      let ind = sliced_indices_array#get_content ~name:(a) in
       let ebo = new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned in
-      ebo#write_element_buffer ~index:a ~usage:Gl.static_draw;
-      let vao = new vertex_array ~kind:Float32 ~vertex_attributes ~element_buffer:ebo ~number_of_drawn_vertices:(List.length a) ~drawing_type:Gl.static_draw in
+      ebo#write_element_buffer ~index:ind ~usage:Gl.static_draw;
+      let vao = new vertex_array ~kind:Float32 ~vertex_attributes ~element_buffer:ebo ~number_of_drawn_vertices:(List.length ind) ~drawing_type:Gl.static_draw in
       generate_opengl_objects q (ebo::ebos) (vao::vaos)
     ) in
   
-  let ebos, vaos = generate_opengl_objects indices [] [] in
+  let ebos, vaos = generate_opengl_objects material_slots [] [] in
 
-  let nb_submeshes = List.length vaos in
-  let slot_names =
-    if List.length material_names > nb_submeshes then (
-      List.take nb_submeshes material_names
-    ) else if List.length material_names < nb_submeshes then (
-      List.append material_names (List.init (nb_submeshes - (List.length material_names)) (fun x -> string_of_int x))
-    ) else material_names in
-  
   let dummy_vao = new vertex_array ~kind:Float32 ~vertex_attributes:[] ~element_buffer:(new buffer ~buffer_type:Gl.element_array_buffer ~kind:Int16_unsigned) ~number_of_drawn_vertices:0 ~drawing_type:Gl.static_draw in
-  let vaos_array = new named_array ~nb_of_slots:nb_submeshes ~slot_names ~default_content:dummy_vao ~contents:vaos () in
-  
+  let vaos_array = new named_array ~nb_of_slots:(List.length material_slots) ~slot_names:material_slots ~default_content:dummy_vao ~contents:vaos () in
+
   object (self)
     val _tot_number_of_vertices = nb_vertices_after_reindexing
     val _tot_number_of_drawn_vertices = nb_drawn_vertices
@@ -292,7 +311,7 @@ class model ~path ~with_tex_and_normals =
     val _normal_coordinates = norm_coords_after_reindexing
     val _unsliced_vertex_index = index
     val _vaos = vaos_array
-    val _material_slot_names = slot_names
+    val _material_slot_names = material_slots
     method get_vertex_coordinates = _vertex_coordinates
     method get_texture_coordinates = _texture_coordinates
     method get_normal_coordinates = _normal_coordinates
@@ -310,5 +329,6 @@ class model ~path ~with_tex_and_normals =
       let rec del_arr names = match names with
         | [] -> ()
         | a::q -> ((_vaos#get_content ~name:a)#delete (); del_arr q) in
-      del_arr (_vaos#get_slot_names)
+      del_arr (_vaos#get_slot_names);
+      dummy_vao#delete ()
   end

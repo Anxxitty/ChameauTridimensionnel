@@ -323,6 +323,6 @@ class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_ar
     method render ~(window : window) ~(uniforms : uniform list) =
       let rec iter_render dr = match dr with
         | [] -> ()
-        | a::q -> a#render ~window ~uniforms; iter_render q in
+        | a::q -> a#copy_movable (self :> movable); a#render ~window ~uniforms; iter_render q in (*moves the subdrawables along with the drawable, then renders them*)
       iter_render _drawables
   end

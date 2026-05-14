@@ -73,27 +73,42 @@ class ['a] named_array ~nb_of_slots ~(slot_names : string list) ~(default_conten
       )
   in let () = fill_array 0 slot_names cont in
   object (self)
-      val _array = array
-      val _nb_of_slots = nb_of_slots
-      val _slot_names = slot_names
-      method get_nb_of_slots = _nb_of_slots
-      method get_slot_names = _slot_names
-      method get_default_content = default_content
-      method set_content ~name ~content =
-        let found = ref false in
-        for i = 0 to _nb_of_slots - 1 do
-          if fst _array.(i) = name
-            then (_array.(i) <- (name, content); found := true)
-        done;
-        if not !found then logger Warning ("named_array: set_content failed: slot \""^name^"\" was not found.")
-      method get_content ~name =
-        let cont = ref default_content in
-        let found = ref false in
-        for i = 0 to _nb_of_slots - 1 do
-          if fst _array.(i) = name
-            then (cont := snd _array.(i); found := true)
-        done;
-        if not !found then logger Warning ("named_array: get_content failed: slot \""^name^"\" was not found. Returning default content.");
-        !cont
+    val _array = array
+    val _nb_of_slots = nb_of_slots
+    val _slot_names = slot_names
+    method get_nb_of_slots = _nb_of_slots
+    method get_slot_names = _slot_names
+    method get_default_content = default_content
+    method set_content ~name ~content =
+      let found = ref false in
+      for i = 0 to _nb_of_slots - 1 do
+        if fst _array.(i) = name
+          then (_array.(i) <- (name, content); found := true)
+      done;
+      if not !found then logger Warning ("named_array: set_content failed: slot \""^name^"\" was not found.")
+    method get_content ~name =
+      let cont = ref default_content in
+      let found = ref false in
+      for i = 0 to _nb_of_slots - 1 do
+        if fst _array.(i) = name
+          then (cont := snd _array.(i); found := true)
+      done;
+      if not !found then logger Warning ("named_array: get_content failed: slot \""^name^"\" was not found. Returning default content.");
+      !cont
+  end
+
+class ['a] default ~init ~delete =
+  object (self)
+    val _init = init
+    val _delete = delete
+    val _value : 'a option ref = ref None
+    method init () =
+      _value := Some (_init ())
+    method get = match (!_value) with
+      | None -> logger Error "defaults: fatal: cannot get default because it was not initialized!"; failwith "See error above."
+      | Some v -> v
+    method delete () = match (!_value) with
+      | None -> ()
+      | Some v -> _delete v
   end
 
