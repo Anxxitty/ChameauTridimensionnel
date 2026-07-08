@@ -9,7 +9,7 @@ uniform mat4 view_matrix;
 uniform mat4 projection_matrix;
 uniform float time;
 void main() {
-    gl_Position = projection_matrix *  view_matrix * model_matrix * pos;
+    gl_Position = projection_matrix * view_matrix * model_matrix * pos;
     tex_coord = vec2(i_tex_coord.x, 1 - i_tex_coord.y);
     norm = i_norm;
 }

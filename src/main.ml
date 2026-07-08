@@ -11,6 +11,9 @@ open Shader
 open Model
 open Materials
 open Defaults
+open Scene_handler
+open Scenes
+open Initializer
 
 (*Main function*)
 let () =
@@ -22,6 +25,7 @@ let () =
   logger Debug "Main: Initializing a window.";
   let window = new window ~width:1280 ~height:720 ~name:"WombatCombat" in
   initialize_defaults ();
+  initialize_scenes ();
   window#hide_cursor ();
 
   Gl.enable Gl.blend;
@@ -31,7 +35,7 @@ let () =
   Gl.polygon_mode Gl.front_and_back Gl.line;*)
 
   (*Testing the basic .obj model loader*)
-  let cube_model = new model ~path:"assets/models/cube.obj" ~with_tex_and_normals:true in
+  (*let cube_model = new model ~path:"assets/models/cube.obj" ~with_tex_and_normals:true in
   let cat_model = new model ~path:"assets/models/cat.obj" ~with_tex_and_normals:true in
   let tie_model = new model ~path:"assets/models/tie.obj" ~with_tex_and_normals:false in
   let dark_vador_tie_model = new model ~path:"assets/models/darkvadortie.obj" ~with_tex_and_normals:false in
@@ -39,6 +43,13 @@ let () =
   let table_model = new model ~path:"assets/models/table.obj" ~with_tex_and_normals:false in
   let torus_model = new model ~path:"assets/models/torus.obj" ~with_tex_and_normals:true in
   let dirac_model = new model ~path:"assets/models/dirac.obj" ~with_tex_and_normals:false in
+  let bike_model = new model ~path:"assets/models/bike.obj" ~with_tex_and_normals:false in
+  let knob_model = new model ~path:"assets/models/testObj.obj" ~with_tex_and_normals:true in
+  let knob_mat = new material_array ~nb_of_slots:(List.length knob_model#get_material_slot_names) ~slot_names:knob_model#get_material_slot_names () in
+
+  let sphere_model = new model ~path:"assets/models/sphere.obj" ~with_tex_and_normals:true in
+  let sphere_mat = make_3D_textured_mesh_material_array ~slot_names:sphere_model#get_material_slot_names ~textures_paths:[["assets/textures/sphere_texture.png"]] in
+  let sphere_drawable = new multi_mesh_drawable ~vertex_arrays:sphere_model#get_vaos ~materials:sphere_mat ~scene_coordinates:(vec3 10.0 5.0 50.0) ~local_rotation:identity_quat ~scale:(vec3 1.0 1.0 1.0) in
 
   let car_model = new model ~path:"assets/models/car.obj" ~with_tex_and_normals:true in
 
@@ -82,9 +93,12 @@ let () =
 
   let mat = new generic_material ~shader_program in
 
+  let bike_mat = make_single_material_array ~slot_names:bike_model#get_material_slot_names ~material:mat in
+  let bike_drawable = new multi_mesh_drawable ~vertex_arrays:bike_model#get_vaos ~materials:bike_mat ~scene_coordinates:(vec3 0. 100. 0.) ~local_rotation:identity_quat ~scale:(vec3 1. 1. 1.) in
+
   let cube_drawable = new multi_mesh_drawable ~vertex_arrays:cube_model#get_vaos ~materials:(make_single_material_array ~slot_names:cube_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=0.0;y=3.0;z=(-5.0)} ~local_rotation:identity_quat ~scale:{x=1.5;y=1.5;z=1.5} in
   let cat_initial_rot = rotation_quat ~axis:{x=1.0;y=0.0;z=0.0} ~angle:(rad_of_deg (-90.0)) in
-  let cat_drawable = new multi_mesh_drawable ~vertex_arrays:cat_model#get_vaos ~materials:(make_single_material_array ~slot_names:cat_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=(-16.0);y=5.0;z=0.0} ~local_rotation:cat_initial_rot ~scale:{x=0.25;y=0.25;z=0.25} in
+  let cat_drawable = new multi_mesh_drawable ~vertex_arrays:cat_model#get_vaos ~materials:(make_3D_textured_mesh_material_array ~slot_names:cat_model#get_material_slot_names ~textures_paths:[["assets/textures/cat_texture.png"]]) ~scene_coordinates:{x=(-16.0);y=5.0;z=0.0} ~local_rotation:cat_initial_rot ~scale:{x=0.25;y=0.25;z=0.25} in
   let tie_drawable = new multi_mesh_drawable ~vertex_arrays:tie_model#get_vaos ~materials:(make_single_material_array ~slot_names:tie_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=0.0;y=3.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=0.1;y=0.1;z=0.1} in
   let dark_vador_tie_drawable = new multi_mesh_drawable ~vertex_arrays:dark_vador_tie_model#get_vaos ~materials:(make_single_material_array ~slot_names:dark_vador_tie_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=12.0;y=3.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=0.05;y=0.05;z=0.05} in
   let hexagon_drawable = new multi_mesh_drawable ~vertex_arrays:hexagon_model#get_vaos ~materials:(make_single_material_array ~slot_names:hexagon_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=0.0;y=3.0;z=(-20.0)} ~local_rotation:identity_quat ~scale:{x=0.5;y=0.5;z=0.5} in
@@ -93,6 +107,11 @@ let () =
   let dirac_drawable = new multi_mesh_drawable ~vertex_arrays:dirac_model#get_vaos ~materials:(make_single_material_array ~slot_names:dirac_model#get_material_slot_names ~material:mat) ~local_rotation:identity_quat ~scene_coordinates:{x=30.0;y=5.0;z=(-50.0)} ~scale:{x=1.0;y=1.0;z=1.0} in
 
   let dirac = new multi_mesh_drawable ~vertex_arrays:cube_model#get_vaos ~materials:(make_single_material_array ~slot_names:cube_model#get_material_slot_names ~material:mat) ~scene_coordinates:{x=10.0;y=0.0;z=25.0} ~local_rotation:identity_quat ~scale:{x=1.0;y=1e38;z=1.0} in
+
+  knob_mat#set_content ~name:"InnerMat" ~content:(windows_material);
+  knob_mat#set_content ~name:"OuterMat" ~content:(cube_mat :> material);
+
+  let knob_drawable = new multi_mesh_drawable ~vertex_arrays:knob_model#get_vaos ~materials:knob_mat ~scene_coordinates:(vec3 0. 10. 20.) ~local_rotation:identity_quat ~scale:(vec3 1. 1. 1.) in
 
   (*trying to create a sky*)
   let sky_pos = new vertex_attribute ~attribute_type:(Vector4_kind Float32) ~number_of_vertices:4 ~vector_list:[
@@ -113,37 +132,29 @@ let () =
 
   let sky_mat = new generic_material ~shader_program:sky_shader in
 
-  let sky_drawable = new drawable ~vertex_array:sky_vao ~material:sky_mat ~scene_coordinates:{x=0.0;y=0.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=1.0;y=1.0;z=1.0} in
+  let sky_drawable = new simple_drawable ~vertex_array:sky_vao ~material:sky_mat ~scene_coordinates:{x=0.0;y=0.0;z=0.0} ~local_rotation:identity_quat ~scale:{x=1.0;y=1.0;z=1.0} in
 
-  let camera = new fly_camera ~scene_coordinates:{x=0.0;y=10.0;z=(15.0)} ~fov:(rad_of_deg 45.0) ~near_plane:0.1 ~far_plane:1000.0 in
+  (*let camera = new fly_camera ~scene_coordinates:{x=0.0;y=10.0;z=(15.0)} ~fov:(rad_of_deg 45.0) ~near_plane:0.1 ~far_plane:1000.0 in
 
-  let in_tie = ref false in
-  let speed = ref 5.0 in
+*)
+  let camera = new pov_camera ~bound_actor:(car_drawable :> movable) ~distance:(10.0) ~fov:(rad_of_deg 45.0) ~near_plane:0.1 ~far_plane:1000.0 in
+
+  car_drawable#rotate_local ~axis:(vec3 0.0 1.0 0.0) ~angle:pi;
+
+  let in_tie = ref false in*)
+
+  let scener = new scene_handler ~initial_scene:(Main_scene.scene#get) in
 
   (*Main render function*)
   let render aspect_ratio () =
-    shader_program#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};
-    tex_shader#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};
-    let view_matrix = camera#gen_view_matrix in
-    let proj_matrix = camera#gen_projection_matrix ~aspect_ratio in
-    let uniforms = [Matrix_uniform4f ("view_matrix", view_matrix);Matrix_uniform4f ("projection_matrix", proj_matrix)] in
-    cube_drawable#render ~window ~uniforms;
-    cat_drawable#render ~window ~uniforms;
-    tie_drawable#render ~window ~uniforms;
-    dark_vador_tie_drawable#render ~window ~uniforms;
-    hexagon_drawable#render ~window ~uniforms;
-    table_drawable#render ~window ~uniforms;
-    torus_drawable#render ~window ~uniforms;
-    tex_cube_drawable#render ~window ~uniforms;
-    car_drawable#render ~window ~uniforms;
-    car_drawable2#render ~window ~uniforms;
-    dirac_drawable#render ~window ~uniforms;
-    dirac#render ~window ~uniforms;
-    sky_drawable#render ~window ~uniforms:[]
+    (*shader_program#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};
+    tex_shader#set_uniform1f ~name:"time" ~value:{x=GLFW.getTime()};*)
+    scener#render ~window ~uniforms:[] ~aspect_ratio
+    (*sky_drawable#render ~window ~uniforms:[]*)
     in
   
   let animation_tick time elapsed_time () =
-    logger Debug_main_loop "Main: Moving drawables.";
+    logger Debug_main_loop "Main: Moving drawables."(*;
     let time = 2.*.time in 
     tie_drawable#get_coordinates.x <- 25.*.cos(time);
     tie_drawable#get_coordinates.z <- 25.*.sin(time);
@@ -151,17 +162,18 @@ let () =
     tie_drawable#rotate ~quat:(rotation_quat ~axis:{x=sin(time);y=0.0;z=(-.cos(time))} ~angle:(time));
     cube_drawable#set_rotation (rotation_quat ~axis:{x=0.0;y=1.0;z=0.0} ~angle:(sin(time)));
     cat_drawable#rotate ~quat:(rotation_quat ~axis:{x=1.0;y=1.0;z=1.0} ~angle:0.01);
-    if (!in_tie) then (
-      let c = tie_drawable#get_coordinates in
-      camera#set_coordinates {x=(c.x-.25.0*.sin(time)) ; y=c.y ; z=(c.z+.25.0*.cos(time))};
-      camera#set_rotation (quat_of_vec4 (vec4_scalar_op ( *. ) (-1.0) (vec4_of_quat (tie_drawable#get_rotation))));
-      camera#rotate ~quat:(rotation_quat ~axis:{x=0.0;y=1.0;z=0.0} ~angle:0.)
-    ) else camera#tick ~elapsed_time in
+    tie_drawable#tick ~elapsed_time;
+    dark_vador_tie_drawable#translate_local (vec3 0.0 0.0 0.1);
+    dark_vador_tie_drawable#rotate_local ~axis:y_axis ~angle:0.001;
+    camera#tick ~elapsed_time*) in
   
   let tick time elapsed_time () = ()(*
     logger Info ("roll "^string_of_float (roll_of_rot_quat camera#get_rotation));
     logger Info ("yaw "^string_of_float (yaw_of_rot_quat camera#get_rotation));
     logger Info ("pitch "^string_of_float (pitch_of_rot_quat camera#get_rotation))*) in
+
+  
+  let camera = let (module S) = Main_scene.scene#get in S.active_camera in
 
   (*Setup window and inputs*)
   window#register_render_callback render;
@@ -171,27 +183,30 @@ let () =
   window#set_tps 20;
   window#set_animation_tps 60;
   window#register_input_handler (new input_handler ~key:GLFW.Escape ~press_callback:(window#show_cursor) ~release_callback:(fun () -> ()));
-  window#register_input_handler (new input_handler ~key:GLFW.W ~press_callback:(fun () -> camera#get_velocity_vector.z <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.S ~press_callback:(fun () -> camera#get_velocity_vector.z <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.z <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.A ~press_callback:(fun () -> camera#get_velocity_vector.x <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.D ~press_callback:(fun () -> camera#get_velocity_vector.x <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.x <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.LeftShift ~press_callback:(fun () -> camera#get_velocity_vector.y <- (-.(!speed))) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
-  window#register_input_handler (new input_handler ~key:GLFW.Space     ~press_callback:(fun () -> camera#get_velocity_vector.y <-   !speed ) ~release_callback:(fun () -> camera#get_velocity_vector.y <- 0.0));
+  window#register_input_handler (new input_handler ~key:GLFW.W ~press_callback:(fun () -> camera#forward ()) ~release_callback:(fun () -> camera#stop ~z:true ()));
+  window#register_input_handler (new input_handler ~key:GLFW.S ~press_callback:(fun () -> camera#backward ()) ~release_callback:(fun () -> camera#stop ~z:true ()));
+  window#register_input_handler (new input_handler ~key:GLFW.A ~press_callback:(fun () -> camera#left ()) ~release_callback:(fun () -> camera#stop ~x:true ()));
+  window#register_input_handler (new input_handler ~key:GLFW.D ~press_callback:(fun () -> camera#right ()) ~release_callback:(fun () -> camera#stop ~x:true ()));
+  window#register_input_handler (new input_handler ~key:GLFW.LeftShift ~press_callback:(fun () -> camera#down ()) ~release_callback:(fun () -> camera#stop ~y:true ()));
+  window#register_input_handler (new input_handler ~key:GLFW.Space     ~press_callback:(fun () -> camera#up ()) ~release_callback:(fun () -> camera#stop ~y:true ()));
   window#register_input_handler (new toggle_input_handler ~key:GLFW.F11 ~toggle_on_callback:(fun () -> window#enable_fullscreen ()) ~toggle_off_callback:(fun () -> window#disable_fullscreen ()));
   window#register_input_handler (new toggle_input_handler ~key:GLFW.T ~toggle_on_callback:(fun () -> in_tie := true) ~toggle_off_callback:(fun () -> in_tie := false));
-  window#register_input_handler (new input_handler ~key:GLFW.LeftControl ~press_callback:(fun () -> speed := 10.0) ~release_callback:(fun () -> speed := 5.0));
+  window#register_input_handler (new input_handler ~key:GLFW.LeftControl ~press_callback:(fun () -> camera#set_speed 10.0) ~release_callback:(fun () -> camera#set_speed 5.0));
+  window#register_input_handler (new input_handler ~key:GLFW.Equal ~press_callback:(fun () -> camera#set_distance (camera#get_distance +. 0.2)) ~release_callback:(fun () -> ()));
+  window#register_input_handler (new input_handler ~key:GLFW.Num6 ~press_callback:(fun () -> camera#set_distance (camera#get_distance -. 0.2)) ~release_callback:(fun () -> ()));
 
   let mouse_sensitivity = 0.001 in
 
   let mouse_position_callback x_offset y_offset =
-    if window#is_cursor_shown = false then (
+    if window#is_cursor_shown = false then ((*
       camera#rotate_pitch ~angle:(-.mouse_sensitivity*.y_offset);
-      camera#rotate_yaw ~angle:(-.mouse_sensitivity*.x_offset)) in
+      camera#rotate_yaw ~angle:(-.mouse_sensitivity*.x_offset))*)) in
   window#register_mouse_callback mouse_position_callback;
 
-  let scroll_callback x_offset y_offset = camera#set_fov (camera#get_fov +. (0.01*.y_offset)) in
+  let scroll_callback x_offset y_offset = () (*camera#set_fov (camera#get_fov +. (0.01*.y_offset))*) in
   window#register_scroll_callback scroll_callback;
 
+  (*
   window#register_input_handler (new input_handler ~key:GLFW.Left ~press_callback:(fun () -> camera#rotate_roll ~angle:0.01) ~release_callback:(fun () -> ()));
   window#register_input_handler (new input_handler ~key:GLFW.Right ~press_callback:(fun () -> camera#rotate_roll ~angle:(-0.01)) ~release_callback:(fun () -> ()));
   window#register_input_handler (new input_handler ~key:GLFW.R ~press_callback:(fun () -> (
@@ -200,7 +215,7 @@ let () =
     let roll_sign = dot3f camera_z z_axis in
     if roll_sign > 0. then camera#rotate_roll ~angle:(-.roll)
     else camera#rotate_roll ~angle:(pi+.roll)
-  )) ~release_callback:(fun () -> ()));
+  )) ~release_callback:(fun () -> ()));*)
 
   (*Main loop*)
   let rec loop () =
@@ -216,7 +231,7 @@ let () =
     if window#should_close
       then (
         logger Debug "Main: Exited the main loop, closing.";
-        window#delete ();
+        window#delete ();(*
         shader_program#delete ();
         windows_shader#delete ();
         tex_shader#delete ();
@@ -232,7 +247,7 @@ let () =
         brick_texture#delete ();
         car_model#delete ();
         car_int_texture#delete ();
-        car_ext_texture#delete ();
+        car_ext_texture#delete ();*)
         delete_defaults ();
         logger Info "Main: Successfully terminated GLFW. Exiting.")
       else

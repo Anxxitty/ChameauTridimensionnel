@@ -166,7 +166,7 @@ class model ~path ~with_tex_and_normals =
           | ([],[],[]) -> acc
           | (v::vert_ind, t::tex_ind, n::norm_ind) -> 
             build_vectorialized_indices_list ((v,t,n,i)::acc) (i+1) (vert_ind,tex_ind,norm_ind)
-          | _ -> logger Error ("model: Incomplete texture or normal coordinates in file: \""^path^"\""); [] in
+          | _ -> logger Warning ("model: Incomplete texture or normal coordinates in file: \""^path^"\" ; the model will probably not display at all."); [] in
 
       (*to sort the vectorialized index without touching to the i index*)
       let compare_lexico (v,t,n,i) (v',t',n',i') =

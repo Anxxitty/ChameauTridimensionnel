@@ -6,8 +6,8 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
     val mutable _coordinates = scene_coordinates
     val mutable _rotation = local_rotation
     val mutable _scale = scale
-    val mutable _velocity_vector = {x=0.0;y=0.0;z=0.0}
-    val mutable _acceleration_vector = {x=0.0;y=0.0;z=0.0}
+    val mutable _velocity_vector = vec3 0.0 0.0 0.0
+    val mutable _acceleration_vector = vec3 0.0 0.0 0.0
     (*getters and setters*)
     method get_coordinates =
       _coordinates
@@ -35,8 +35,12 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
     method translate (translation : float vector3) =
       _coordinates <- vec3_op ( +. ) _coordinates translation
     (*rotates the object along the given axis by the given angle*)
+    method translate_local (translation : float vector3) =
+      self#translate (vec3f_in_base ~vector:translation ~base:(base_of_rot ~quat:_rotation))
     method rotate ~(quat : quaternion) =
       _rotation <- multiply_quat quat _rotation
+    method rotate_local ~(axis : float vector3) ~(angle : float) =
+      _rotation <- multiply_quat (rotation_quat ~axis:(vec3f_in_base ~vector:axis ~base:(base_of_rot ~quat:_rotation)) ~angle) _rotation
     (*scales the object by the given vector*)
     method scale (scaling_vector : float vector3) =
       _scale <- vec3_op ( *. ) _scale scaling_vector
@@ -52,7 +56,7 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
       _velocity_vector <- vec3_op ( +. ) _velocity_vector (vec3_scalar_op ( *. ) elapsed_time _acceleration_vector)
   end
 
-class camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
+class virtual camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
   object (self)
     inherit movable ~scene_coordinates ~local_rotation:identity_quat ~scale
     val mutable _fov = fov
@@ -84,8 +88,15 @@ class camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(fa
 
 class fly_camera ~scene_coordinates ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
   object (self)
-    inherit camera ~scene_coordinates ~scale:{x=0.0;y=0.0;z=0.0} ~fov ~near_plane ~far_plane
-      
+    inherit camera ~scene_coordinates ~scale:(vec3 0.0 0.0 0.0) ~fov ~near_plane ~far_plane
+
+    val mutable _speed = 5.0
+
+    method get_speed =
+      _speed
+    method set_speed s =
+      _speed <- s
+
     method rotate_yaw ~angle =
       _rotation <- multiply_quat (rotation_quat ~axis:y_axis ~angle) _rotation
     method rotate_pitch ~angle =
@@ -95,6 +106,25 @@ class fly_camera ~scene_coordinates ~(fov : float) ~(near_plane : float) ~(far_p
     method rotate_roll ~angle =
       let roll_axis = rotate_vec_with_quat z_axis _rotation in
       _rotation <- multiply_quat (rotation_quat ~axis:roll_axis ~angle) _rotation
+    
+    method forward () =
+      self#get_velocity_vector.z <- (-._speed)
+    method backward () =
+      self#get_velocity_vector.z <- _speed
+    method left () =
+      self#get_velocity_vector.x <- (-._speed)
+    method right () =
+      self#get_velocity_vector.x <- _speed
+    method up () =
+      self#get_velocity_vector.y <- _speed
+    method down () =
+      self#get_velocity_vector.y <- (-._speed)
+    method stop ?(x=false) ?(y=false) ?(z=false) () =
+      if x then self#get_velocity_vector.x <- 0.0;
+      if y then self#get_velocity_vector.y <- 0.0;
+      if z then self#get_velocity_vector.z <- 0.0;
+      if (not x) && (not y) && (not z) then self#set_velocity_vector (vec3 0.0 0.0 0.0) 
+      
 
     (*tick is overriden so that the camera moves in the direction it is pointing and not along the world axes*)
     (*more precisely, the x and z velocities will follow camera axes*)
@@ -110,4 +140,64 @@ class fly_camera ~scene_coordinates ~(fov : float) ~(near_plane : float) ~(far_p
                                    z=(dot3f translation_along_camera_x z_axis)+.(dot3f translation_along_camera_z z_axis)} in
       self#translate translation_world_space;
       _velocity_vector <- vec3_op ( +. ) _velocity_vector (vec3_scalar_op ( *. ) elapsed_time _acceleration_vector)
+  end
+
+class pov_camera ~(bound_actor : movable) ~(distance : float) ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
+  object (self)
+    inherit camera ~scene_coordinates:(bound_actor#get_coordinates) ~scale:(bound_actor#get_scale) ~fov ~near_plane ~far_plane
+    
+    val mutable _bound_actor = bound_actor
+    val mutable _distance = distance
+
+    val mutable _speed = 5.0
+
+    method set_bound_actor a =
+      _bound_actor <- a
+    method get_bound_actor =
+      _bound_actor
+    
+    method set_distance d =
+      _distance <- d
+    method get_distance =
+      _distance
+
+    method get_speed =
+      _speed
+    method set_speed s =
+      _speed <- s
+
+    method rotate_yaw ~angle =
+      _bound_actor#rotate ~quat:(rotation_quat ~axis:(vec3 0.0 1.0 0.0) ~angle);
+      self#rotate ~quat:(rotation_quat ~axis:(vec3 0.0 1.0 0.0) ~angle)
+    method rotate_pitch ~angle =
+      self#rotate_local ~axis:(vec3 1.0 0.0 0.0) ~angle
+    method rotate_roll ~angle =
+      _bound_actor#rotate_local ~axis:(vec3 0.0 0.0 1.0) ~angle;
+      self#rotate_local ~axis:(vec3 0.0 0.0 1.0) ~angle
+    
+    method forward () =
+      self#get_velocity_vector.z <- _speed
+    method backward () =
+      self#get_velocity_vector.z <- (-._speed)
+    method left () =
+      self#get_velocity_vector.x <- _speed
+    method right () =
+      self#get_velocity_vector.x <- (-._speed)
+    method up () =
+      self#get_velocity_vector.y <- _speed
+    method down () =
+      self#get_velocity_vector.y <- (-._speed)
+    method stop ?(x=false) ?(y=false) ?(z=false) () =
+      if x then self#get_velocity_vector.x <- 0.0;
+      if y then self#get_velocity_vector.y <- 0.0;
+      if z then self#get_velocity_vector.z <- 0.0;
+      if (not x) && (not y) && (not z) then self#set_velocity_vector (vec3 0.0 0.0 0.0) 
+
+    (*tick is overriden so that the camera moves in the direction it is pointing and not along the world axes*)
+    (*more precisely, the x and z velocities will follow camera axes*)
+    (*for the y velocity, it both follows world y_axis and camera axes: the strictly y velocity gets added to the resulting y velocities of the projected x and z velocities*)
+    method! tick ~(elapsed_time : float) =
+      _bound_actor#translate_local (vec3_scalar_op ( *. ) elapsed_time _velocity_vector);
+      self#set_coordinates _bound_actor#get_coordinates;
+      self#translate_local (vec3_scalar_op ( *. ) _distance z_axis)
   end

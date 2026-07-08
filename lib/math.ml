@@ -85,7 +85,7 @@ let vec3f_in_base ~(vector : float vector3) ~(base : float vector3 * float vecto
     x = dot3f x x_axis +. dot3f y x_axis +. dot3f z x_axis;
     y = dot3f x y_axis +. dot3f y y_axis +. dot3f z y_axis;
     z = dot3f x z_axis +. dot3f y z_axis +. dot3f z z_axis
-  }
+  }    
 
 let string_of_vector1f (vec : float vector1) = "{ x = "^string_of_float vec.x^" }"
 let string_of_vector2f (vec : float vector2) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^" }"
@@ -125,6 +125,12 @@ let rotate_vec_with_quat (vector : float vector3) (quat : quaternion) =
   let p = quat_of_vec3 vector in
   vec3_of_quat (multiply_quat (multiply_quat quat p) (conj_quat quat))
 
+let base_of_rot ~(quat : quaternion) =
+  let local_z = rotate_vec_with_quat z_axis quat in
+  let local_x = rotate_vec_with_quat x_axis quat in
+  let local_y = rotate_vec_with_quat y_axis quat in
+  (local_x, local_y, local_z)
+  
 
 let identity_quat = {r=1.0;i=0.0;j=0.0;k=0.0}
 

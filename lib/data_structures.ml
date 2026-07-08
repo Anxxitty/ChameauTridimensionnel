@@ -111,4 +111,3 @@ class ['a] default ~init ~delete =
       | None -> ()
       | Some v -> _delete v
   end
-

@@ -277,9 +277,15 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
       _element_buffer#delete ()
   end
 
-class ['a, 'b, 'c] drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(material : material) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+class virtual drawable ~scene_coordinates ~local_rotation ~scale =
   object (self)
     inherit movable ~scene_coordinates ~local_rotation ~scale
+    method virtual render : (window : window -> uniforms : uniform list -> unit)
+  end
+
+class ['a, 'b, 'c] simple_drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(material : material) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+  object (self)
+    inherit drawable ~scene_coordinates ~local_rotation ~scale
     val mutable _vertex_array = vertex_array
     val mutable _material = material
     val _number_of_drawn_vertices = vertex_array#get_number_of_drawn_vertices
@@ -313,11 +319,11 @@ class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_ar
     | a::q -> 
         let vao = vertex_arrays#get_content ~name:a in
         let mat = materials#get_content ~name:a in
-        (new drawable ~vertex_array:vao ~material:mat ~scene_coordinates ~local_rotation ~scale)::(gen_drawables q) in
+        (new simple_drawable ~vertex_array:vao ~material:mat ~scene_coordinates ~local_rotation ~scale)::(gen_drawables q) in
       
   let drawables = gen_drawables vao_names in
   object (self)
-    inherit movable ~scene_coordinates ~local_rotation ~scale
+    inherit drawable ~scene_coordinates ~local_rotation ~scale
     val _drawables = drawables
     method get_sub_drawables = _drawables
     method render ~(window : window) ~(uniforms : uniform list) =
