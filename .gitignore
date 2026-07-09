@@ -1,5 +1,6 @@
 _build/
 _opam/
+.vscode/
 log/
 todo.txt
 assets/models/cat.obj

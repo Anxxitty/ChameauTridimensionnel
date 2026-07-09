@@ -4,11 +4,13 @@ open Window
 open Actor
 open Data_structures
 
+type deletable = < delete : unit -> unit >
+
 module type Scene = sig
   val movables : movable list
   val opaque_drawables : drawable list
   val translucent_drawables : drawable list
-  val to_delete : < delete : unit -> unit > list
+  val to_delete : deletable list
   val active_camera : camera
   val tick : (window : window -> elapsed_time : float -> unit)
 end
@@ -23,8 +25,8 @@ class scene_handler ~(initial_scene : scene) =
     method switch_scene scene =
       _active_scene <- scene
     method render ~(window : window) ~(uniforms : uniform list) ~aspect_ratio =
-
-      let camera = let (module S) = _active_scene in S.active_camera in
+      let (module S) = _active_scene in
+      let camera = S.active_camera in
 
       let view_matrix = camera#gen_view_matrix in
       let proj_matrix = camera#gen_projection_matrix ~aspect_ratio in
@@ -34,4 +36,6 @@ class scene_handler ~(initial_scene : scene) =
         | [] -> ()
         | a::q -> (a#render ~window ~uniforms; aux q)
       in aux (let (module S) = _active_scene in S.opaque_drawables)
+    method tick ~window ~elapsed_time =
+      let (module S) = _active_scene in S.tick ~window ~elapsed_time
   end

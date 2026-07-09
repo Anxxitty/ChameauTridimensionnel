@@ -2,6 +2,7 @@ open Shader
 open Logger
 open Data_structures
 open Tgl3
+open Math
 
 class virtual material =
   object (self)
@@ -9,6 +10,25 @@ class virtual material =
     method virtual get_shader_program : shader_program
     method virtual prep_render : (uniforms : uniform list -> unit)
   end
+
+let to_material (a : #material list) =
+  List.map (fun x -> (x :> material)) a
+
+module type Material = sig
+  type material_type
+  val material : material_type default
+end
+
+let material_registry = ref []
+
+let make_material ~init ~delete = 
+  let m = new default ~init ~delete in
+  material_registry := (m :> material default)::(!material_registry); m
+
+let get_material (module M : Material) = M.material#get
+
+let initialize_materials () =
+  List.iter (fun m -> m#init ()) (!material_registry)
 
 class generic_material ~shader_program =
   object (self)
@@ -113,6 +133,58 @@ class textured_material ~shader_program ~(textures : texture list) =
           ) in
       bind_textures textures 0;
       super#prep_render ~uniforms
+  end
+
+let phong_shader = new default ~init:(fun x ->(
+  let vertex_shader = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/3D_textured_phong_vert.glsl" in
+  let fragment_shader = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/3D_textured_phong_frag.glsl" in
+  new shader_program ~vertex_shader ~fragment_shader
+)) ~delete:(fun x -> x#delete ())
+
+class textured_phong_material ~(textures : texture list) ~(alpha : float) ~(ambient_coeff : float) ~(specular_expo : int) ~(light_position : float vector3) ~(light_color : float vector3) ~(light_intensity : float) =
+  object (self)
+    inherit textured_material ~shader_program:(phong_shader#get) ~textures as super
+    val mutable _alpha = alpha
+    val mutable _ambient_coeff = ambient_coeff
+    val mutable _specular_expo = specular_expo
+    val mutable _light_position = light_position
+    val mutable _light_color = light_color
+    val mutable _light_intensity = light_intensity
+    (*getters and setters*)
+    method get_alpha =
+      _alpha
+    method get_ambient_coeff =
+      _ambient_coeff
+    method get_specular_expo =
+      _specular_expo
+    method get_light_position =
+      _light_position
+    method get_light_color =
+      _light_color
+    method get_light_intensity =
+      _light_intensity
+    method set_alpha x =
+      _alpha <- x
+    method set_ambient_coeff x =
+      _ambient_coeff <- x
+    method set_specular_expo x =
+      _specular_expo <- x
+    method set_light_position x =
+      _light_position <- x
+    method set_light_color x =
+      _light_color <- x
+    method set_light_intensity x =
+      _light_intensity <- x
+    
+    method! prep_render ~uniforms =
+      _shader_program#set_uniform1f ~name:"alpha" ~value:(vec1 _alpha);
+      _shader_program#set_uniform1f ~name:"ambient" ~value:(vec1 _ambient_coeff);
+      _shader_program#set_uniform1i ~name:"specular_expo" ~value:(vec1 _specular_expo);
+      _shader_program#set_uniform1f ~name:"light_intensity" ~value:(vec1 _light_intensity);
+      _shader_program#set_uniform3f ~name:"light_pos" ~value:_light_position;
+      _shader_program#set_uniform3f ~name:"light_col" ~value:_light_color;
+      super#prep_render ~uniforms
+      
   end
 
 class material_array ~nb_of_slots ~(slot_names : string list) ?(materials : material list option) () =

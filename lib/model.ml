@@ -4,7 +4,7 @@ open Math
 open Bigarray
 open Graphics
 open Data_structures
-open Materials
+open Material
 open Shader
 
 

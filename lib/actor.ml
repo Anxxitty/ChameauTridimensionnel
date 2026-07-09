@@ -56,6 +56,9 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
       _velocity_vector <- vec3_op ( +. ) _velocity_vector (vec3_scalar_op ( *. ) elapsed_time _acceleration_vector)
   end
 
+let to_movable a =
+  List.map (fun x -> (x :> movable)) a
+
 class virtual camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
   object (self)
     inherit movable ~scene_coordinates ~local_rotation:identity_quat ~scale

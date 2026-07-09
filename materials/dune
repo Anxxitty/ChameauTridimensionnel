@@ -1,0 +1,3 @@
+(library
+ (name Materials)
+ (libraries tgls.tgl3 glfw-ocaml stb_image ChameauTridimensionnel))

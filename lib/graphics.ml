@@ -6,7 +6,7 @@ open Window
 open Bigarray
 open Data_structures
 open Tgl3
-open Materials
+open Material
 
 let get_gl_type : type a b. ((a, b) kind -> int) = function
 | Int8_signed -> Gl.byte
@@ -332,3 +332,6 @@ class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_ar
         | a::q -> a#copy_movable (self :> movable); a#render ~window ~uniforms; iter_render q in (*moves the subdrawables along with the drawable, then renders them*)
       iter_render _drawables
   end
+
+let to_drawable a =
+  List.map (fun x -> (x :> drawable)) a
