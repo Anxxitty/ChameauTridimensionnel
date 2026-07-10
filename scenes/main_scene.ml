@@ -12,6 +12,7 @@ open Math
 open Tgl3
 open Actor
 open Data_structures
+open Save
 
 let camera = new pov_camera ~bound_actor:(new movable ~scene_coordinates:(vec3 0.0 0.0 0.0) ~local_rotation:identity_quat ~scale:(vec3 1.0 1.0 1.0)) ~distance:10.0 ~fov:(rad_of_deg 45.0) ~near_plane:0.1 ~far_plane:1000.0
 
@@ -19,7 +20,7 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
   (*cubes*)
   let cube_model = new model ~path:"assets/models/cube.obj" ~with_tex_and_normals:true
 
-  let green_mat = get_material (module Solid_color.Green)
+  let green_mat = Solid_color.Green.material#get
 
   let cube_mat_arr = make_single_material_array ~slot_names:cube_model#get_material_slot_names ~material:green_mat
 
@@ -39,7 +40,7 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
 
   let light_model = new model ~path:"assets/models/sphere.obj" ~with_tex_and_normals:true
 
-  let light_mat = get_material (module Solid_color.Light)
+  let light_mat = Solid_color.Light.material#get
 
   let light_mat_arr = make_single_material_array ~slot_names:light_model#get_material_slot_names ~material:light_mat
 
@@ -48,9 +49,9 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
   (*car*)
   let car_model = new model ~path:"assets/models/car.obj" ~with_tex_and_normals:true
 
-  let car_exterior_material = get_material (module Car_exterior)
-  let car_interior_material = get_material (module Car_interior)
-  let car_windows_material = get_material (module Car_windows)
+  let car_interior_material = Car_interior.material#get
+  let car_exterior_material = Car_exterior.material#get
+  let car_windows_material = Car_windows.material#get
 
   let phong_mats = [car_exterior_material;car_interior_material;car_windows_material]
 
@@ -65,6 +66,16 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
   let translucent_drawables = []
   let to_delete = [(cube_model :> deletable); (car_model :> deletable)]
   let active_camera = (camera :> camera)
+
+  let camera_persistent = new persistent ~handle:"camera" ~to_string:json_of_movable ~from_string:movable_of_json ~read_target:(fun () -> (active_camera :> movable)) ~write_target:(fun m -> active_camera#copy_movable m)
+  let movables_persistents = List.mapi (fun i m ->
+    new persistent ~handle:("movable"^string_of_int i) ~to_string:json_of_movable ~from_string:movable_of_json ~read_target:(fun () -> m) ~write_target:(fun m' -> m#copy_movable m')
+  ) movables
+  let save = new json_save ~path:"save/main_scene.json"
+  let to_save = 
+    (module struct type persistent_type = float vector3;; let persistent = camera_persistent end : Persistent) ::
+    (List.map (fun p -> (module struct type persistent_type = float vector3;; let persistent = p end : Persistent)) movables_persistents)
+
   let tick ~(window : window) ~(elapsed_time : float) = (
     camera#tick ~elapsed_time;
     let time = GLFW.getTime () in

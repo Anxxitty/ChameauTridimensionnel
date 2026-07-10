@@ -1,0 +1,13 @@
+{
+"movable9": {"coordinates":"-13.1142318206;5.;-15.1002292617","rotation":"1.;0.;0.;0.","scale":"1.;1.;1.","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable8": {"coordinates":"5.97615261087;3.58318708;5.84367246037","rotation":"0.898995593977;0.;0.437957671482;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable7": {"coordinates":"10.;10.;10.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable6": {"coordinates":"10.;10.;0.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable5": {"coordinates":"10.;0.;10.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable4": {"coordinates":"10.;0.;0.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable3": {"coordinates":"0.;10.;10.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable2": {"coordinates":"0.;10.;0.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable1": {"coordinates":"0.;0.;10.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"movable0": {"coordinates":"0.;0.;0.","rotation":"1.;0.;0.;0.","scale":"0.1;0.1;0.1","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."},
+"camera": {"coordinates":"-1.23500123462;7.60028197125;0.199010481865","rotation":"0.428635860447;-0.0898789249345;-0.879860714987;-0.184494444941","scale":"1.;1.;1.","velocity_vector":"0.;0.;0.","acceleration_vector":"0.;0.;0."}
+}

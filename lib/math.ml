@@ -1,4 +1,5 @@
 open Bigarray
+open Logger
 
 (*Math helpers*)
 let pi = Float.pi
@@ -87,15 +88,50 @@ let vec3f_in_base ~(vector : float vector3) ~(base : float vector3 * float vecto
     z = dot3f x z_axis +. dot3f y z_axis +. dot3f z z_axis
   }    
 
-let string_of_vector1f (vec : float vector1) = "{ x = "^string_of_float vec.x^" }"
 let string_of_vector2f (vec : float vector2) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^" }"
 let string_of_vector3f (vec : float vector3) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^"; z = "^string_of_float vec.z^" }"
+let string_of_vector1f (vec : float vector1) = "{ x = "^string_of_float vec.x^" }"
 let string_of_vector4f (vec : float vector4) = "{ x = "^string_of_float vec.x^"; y = "^string_of_float vec.y^"; z = "^string_of_float vec.z^"; w = "^string_of_float vec.w^" }"
 
+let json_of_vector1f (vec : float vector1) = string_of_float vec.x
+let json_of_vector2f (vec : float vector2) = string_of_float vec.x^";"^string_of_float vec.y
+let json_of_vector3f (vec : float vector3) = string_of_float vec.x^";"^string_of_float vec.y^";"^string_of_float vec.z
+let json_of_vector4f (vec : float vector4) = string_of_float vec.x^";"^string_of_float vec.y^";"^string_of_float vec.z^";"^string_of_float vec.w
+
+let vector4f_of_json str =
+  try
+  let split = String.split_on_char ';' str in
+  { x = float_of_string (List.hd split); y = float_of_string (List.hd (List.tl split)) ; z = float_of_string (List.hd (List.tl (List.tl split))) ; w = float_of_string (List.hd (List.tl (List.tl (List.tl split)))) }
+  with e-> logger Error "math: failed to parse string to float vector4. See error below: "; raise e
+
+let vector3f_of_json str =
+  try
+  let split = String.split_on_char ';' str in
+  { x = float_of_string (List.hd split); y = float_of_string (List.hd (List.tl split)) ; z = float_of_string (List.hd (List.tl (List.tl split))) }
+  with e-> logger Error "math: failed to parse string to float vector3. See error below: "; raise e
+
+let vector2f_of_json str =
+  try
+  let split = String.split_on_char ';' str in
+  { x = float_of_string (List.hd split); y = float_of_string (List.hd (List.tl split)) }
+  with e-> logger Error "math: failed to parse string to float vector2. See error below: "; raise e
+
+let vector1f_of_json str =
+  try
+  let split = String.split_on_char ';' str in
+  { x = float_of_string (List.hd split) }
+  with e-> logger Error "math: failed to parse string to float vector1. See error below: "; raise e
 
 
 (*Quaternions*)
 type quaternion = { mutable r : float; mutable i : float; mutable j : float; mutable k : float}
+
+let json_of_quat (q : quaternion) = string_of_float q.r^";"^string_of_float q.i^";"^string_of_float q.j^";"^string_of_float q.k
+let quat_of_json str =
+  try
+  let split = String.split_on_char ';' str in
+  { r = float_of_string (List.hd split); i = float_of_string (List.hd (List.tl split)) ; j = float_of_string (List.hd (List.tl (List.tl split))) ; k = float_of_string (List.hd (List.tl (List.tl (List.tl split)))) }
+  with e-> logger Error "math: failed to parse string to quaternion. See error below: "; raise e
 
 
 let multiply_quat q1 q2 =

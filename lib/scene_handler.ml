@@ -3,6 +3,8 @@ open Shader
 open Window
 open Actor
 open Data_structures
+open Math
+open Save
 
 type deletable = < delete : unit -> unit >
 
@@ -11,13 +13,22 @@ module type Scene = sig
   val opaque_drawables : drawable list
   val translucent_drawables : drawable list
   val to_delete : deletable list
+  val to_save : (module Persistent) list
+  val save : save
   val active_camera : camera
   val tick : (window : window -> elapsed_time : float -> unit)
 end
 
 type scene = (module Scene)
 
-let make_scene ~(scene_init : unit -> scene) = new default ~init:scene_init ~delete:(fun (module S) -> List.iter (fun x -> x#delete ()) S.to_delete)
+let make_scene ~(scene_init : unit -> scene) = new default
+  ~init:(fun () -> (
+    let (module S) = scene_init () in
+    List.iter (fun p -> S.save#register_persistent p) S.to_save;
+    S.save#load ();
+    (module S : Scene)
+  )) 
+  ~delete:(fun (module S) -> List.iter (fun x -> x#delete ()) S.to_delete; S.save#save ())
 
 class scene_handler ~(initial_scene : scene) =
   object (self)

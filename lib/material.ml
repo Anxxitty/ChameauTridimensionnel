@@ -25,10 +25,11 @@ let make_material ~init ~delete =
   let m = new default ~init ~delete in
   material_registry := (m :> material default)::(!material_registry); m
 
-let get_material (module M : Material) = M.material#get
-
 let initialize_materials () =
   List.iter (fun m -> m#init ()) (!material_registry)
+
+let delete_materials () =
+  List.iter (fun m -> m#delete ()) (!material_registry)
 
 class generic_material ~shader_program =
   object (self)

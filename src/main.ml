@@ -33,8 +33,8 @@ let () =
   Gl.enable Gl.blend;
   Gl.blend_func Gl.src_alpha Gl.one_minus_src_alpha;
 
-  (*Wireframe mode*)(*
-  Gl.polygon_mode Gl.front_and_back Gl.line;*)
+  (*Wireframe mode*)
+  (*Gl.polygon_mode Gl.front_and_back Gl.line;*)
 
   let scene1 = Main_scene.scene#get in
   let scene2 = Test_scene.scene#get in
@@ -83,7 +83,7 @@ let () =
       camera#rotate_yaw ~angle:(-.mouse_sensitivity*.x_offset)) in
   window#register_mouse_callback mouse_position_callback;
 
-  let scroll_callback x_offset y_offset = () (*camera#set_fov (camera#get_fov +. (0.01*.y_offset))*) in
+  let scroll_callback x_offset y_offset = camera#set_fov (camera#get_fov +. (0.01*.y_offset)) in
   window#register_scroll_callback scroll_callback;
   
   window#register_input_handler (new input_handler ~key:GLFW.Left ~press_callback:(fun () -> camera#rotate_roll ~angle:0.01) ~release_callback:(fun () -> ()));
@@ -112,6 +112,8 @@ let () =
         logger Debug "Main: Exited the main loop, closing.";
         window#delete ();
         delete_defaults ();
+        delete_materials ();
+        delete_scenes ();
         logger Info "Main: Successfully terminated GLFW. Exiting.")
       else
         loop ();

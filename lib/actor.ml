@@ -1,5 +1,7 @@
 open Math
 open Logger
+open Yojson
+open Data_structures
 
 class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
   object (self)
@@ -58,6 +60,27 @@ class movable ~(scene_coordinates : float vector3) ~(local_rotation : quaternion
 
 let to_movable a =
   List.map (fun x -> (x :> movable)) a
+
+let json_of_movable (m : movable) =
+  to_string (`Assoc [
+    ("coordinates", `String (json_of_vector3f m#get_coordinates));
+    ("rotation", `String (json_of_quat m#get_rotation));
+    ("scale", `String (json_of_vector3f m#get_scale));
+    ("velocity_vector", `String (json_of_vector3f m#get_velocity_vector));
+    ("acceleration_vector", `String (json_of_vector3f m#get_acceleration_vector));
+  ])
+
+let movable_of_json str =
+  try
+  let json = Basic.from_string str in
+  let mov = new movable
+    ~scene_coordinates:(vector3f_of_json (get_in_json ~key:"coordinates" ~json))
+    ~local_rotation:(quat_of_json (get_in_json ~key:"rotation" ~json))
+    ~scale:(vector3f_of_json (get_in_json ~key:"scale" ~json)) in
+  mov#set_acceleration_vector (vector3f_of_json (get_in_json ~key:"acceleration_vector" ~json));
+  mov#set_velocity_vector (vector3f_of_json (get_in_json ~key:"velocity_vector" ~json));
+  mov
+  with e -> logger Warning "actor: failed to parse string to actor. See error below: "; raise e
 
 class virtual camera ~scene_coordinates ~scale ~(fov : float) ~(near_plane : float) ~(far_plane : float) =
   object (self)

@@ -1,6 +1,7 @@
 open Bigarray
 open Math
 open Logger
+open Yojson
 let zero : type a b. (a, b) kind -> a = function
   | Float32 -> 0.0 | Complex32 -> Complex.zero
   | Float64 -> 0.0 | Complex64 -> Complex.zero
@@ -112,3 +113,25 @@ class ['a] default ~init ~delete =
       | Some v -> _delete v
   end
 
+class ['a] persistent ~(handle : string) ~(to_string : 'a -> string) ~(from_string : string -> 'a) ~(read_target : unit -> 'a) ~(write_target : 'a -> unit) =
+  object (self)
+    val _handle = handle  
+    method get_handle =
+      _handle
+    method load (save : in_channel) =
+      try
+        let var = from_string (input_line save) in
+        write_target var
+      with e ->
+        logger Warning ("persistent: failed to load persistent \""^_handle^"\". See error below:");
+        logger Warning ("persistent: "^Printexc.to_string e)
+    method save (save : out_channel) =
+      try
+        let var = to_string (read_target ()) in
+        output_string save var
+      with e ->
+        logger Warning ("persistent: failed to save persistent \""^_handle^"\". See error below:");
+        logger Warning ("persistent: "^Printexc.to_string e)
+  end
+
+let get_in_json ~key ~json = Basic.Util.to_string (Basic.Util.member key json)  

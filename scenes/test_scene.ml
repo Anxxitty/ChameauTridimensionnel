@@ -12,6 +12,7 @@ open Math
 open Tgl3
 open Actor
 open Data_structures
+open Save
 
 let camera = new pov_camera ~bound_actor:(new movable ~scene_coordinates:(vec3 0.0 0.0 0.0) ~local_rotation:identity_quat ~scale:(vec3 1.0 1.0 1.0)) ~distance:10.0 ~fov:(rad_of_deg 45.0) ~near_plane:0.1 ~far_plane:1000.0
 
@@ -76,6 +77,10 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
   let translucent_drawables = []
   let to_delete = [(green_shader :> deletable); (light_shader :> deletable); (cat_texture :> deletable); (cube_model :> deletable); (cat_model :> deletable)]
   let active_camera = (camera :> camera)
+
+  let save = new json_save ~path:"save/test_scene.json"
+  let to_save = []
+
   let tick ~(window : window) ~(elapsed_time : float) = (
     camera#tick ~elapsed_time;
     let time = GLFW.getTime () in

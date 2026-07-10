@@ -23,7 +23,9 @@
     ocaml
     tgls
     glfw-ocaml
-    stb_image)
+    stb_image
+    yojson
+    redirect)
  (tags
   ("add topics" "to describe" your project)))
 
