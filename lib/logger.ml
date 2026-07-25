@@ -51,3 +51,23 @@ let string_of_int_list_capped l n =
     | [] -> ""
     | a::q -> if i >= n then aux [] i else (if q = [] then (string_of_int a)^(aux q (i+1)) else (string_of_int a)^", "^(aux q (i+1)))
   in "["^(aux l 0)^"]"
+
+let with_pipe f =
+  let (read, write) = Unix.pipe () in
+  let in_channel = Unix.in_channel_of_descr read
+  and out_channel = Unix.out_channel_of_descr write in
+  Fun.protect begin fun () ->
+    f in_channel out_channel
+  end
+  ~finally:begin fun () ->
+    close_in_noerr in_channel;
+    close_out_noerr out_channel
+  end
+
+let with_channel_from_string s f =
+  with_pipe @@ fun in_channel out_channel ->
+    let _thread = () |> Thread.create (fun () ->
+      output_string out_channel s;
+      close_out out_channel
+    ) in
+    f in_channel

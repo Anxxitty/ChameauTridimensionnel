@@ -27,7 +27,6 @@ class toggle_input_handler ~(key : GLFW.key) ~(toggle_on_callback : (unit -> uni
   end
 
 class window ~width ~height ~name =
-
   let aspect_ratio = ref (float_of_int width/.float_of_int height) in
   (*Callback function for window resizing event*)
   let on_window_resize aspect_ratio (window : GLFW.window) new_width new_height =
@@ -60,6 +59,7 @@ class window ~width ~height ~name =
     val mutable _animation_tick_callback = None
     val mutable _should_close = false
     val mutable _input_handlers : (input_handler list) = []
+    val mutable _scene_specific_input_handlers : (input_handler list) = []
     val mutable _target_tick_time = 0.05 (*20 ticks per second*) (*fixed-rate low-speed updates: for physical / game logic updates*)
     val mutable _target_animation_tick_time = 0.01666667 (*60 animation ticks per second*) (*animation tick: for fixed-rate high-speed updates, typically animations / camera movement etc*) 
     val mutable _target_frame_time = 0.01666667 (*60 FPS*)
@@ -80,7 +80,7 @@ class window ~width ~height ~name =
       let rec process l = match l with
         | [] -> ()
         | a::q -> a#process ~window:_glfw_window; process q
-      in process _input_handlers;
+      in process _input_handlers; process _scene_specific_input_handlers;
       let cursor_mode = GLFW.getInputMode ~window:_glfw_window ~mode:GLFW.Cursor in
       if (cursor_mode = GLFW.Hidden || cursor_mode = GLFW.Normal)  && GLFW.getMouseButton ~window:_glfw_window ~button:GLFW.mouse_button_left then self#hide_cursor ()
     
@@ -99,6 +99,9 @@ class window ~width ~height ~name =
     method register_input_handler (input_handler : input_handler) =
       _input_handlers <- (input_handler::_input_handlers)
     
+    method register_scene_specific_input_handler input_handler =
+      _scene_specific_input_handlers <- (input_handler::_scene_specific_input_handlers)
+    
     (*The two float arguments correspond to the displacement of the cursor in x and y*)
     method register_mouse_callback (mouse_callback : (float -> float -> unit)) =
       let glfw_callback glfw_window x_pos y_pos = 
@@ -110,10 +113,16 @@ class window ~width ~height ~name =
       let _ = GLFW.setCursorPosCallback ~window:_glfw_window ~f:(Some glfw_callback) in ()
     
     method register_scroll_callback (scroll_callback : (float -> float -> unit)) =
-      let _ =GLFW.setScrollCallback ~window:_glfw_window ~f:(Some (fun win -> scroll_callback)) in ()
+      let _ = GLFW.setScrollCallback ~window:_glfw_window ~f:(Some (fun win -> scroll_callback)) in ()
 
     method get_input_handlers =
       _input_handlers
+    
+    method get_scene_specific_input_handlers =
+      _scene_specific_input_handlers
+    
+    method clear_scene_specific_input_handlers =
+      _scene_specific_input_handlers <- []
     
     method set_should_close b =
       _should_close <- b

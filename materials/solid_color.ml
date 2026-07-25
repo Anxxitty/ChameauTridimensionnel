@@ -15,7 +15,7 @@ module Create ( C : Color ) = struct
     ~init:(fun () -> (
       let basic_vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"assets/shaders/vertex.glsl" in
       let basic_frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"assets/shaders/fragment.glsl" in
-      let green_shader = new shader_program ~vertex_shader:basic_vert ~fragment_shader:basic_frag in
+      let green_shader = new shader_program ~vertex_shader:basic_vert ~fragment_shader:basic_frag () in
       green_shader#set_uniform3f ~name:"color" ~value:C.color;
       new generic_material ~shader_program:green_shader))
     ~delete:(fun m -> (
@@ -23,6 +23,10 @@ module Create ( C : Color ) = struct
 end
 
 module Green = Create (val color (vec3 0.0 1.0 0.0))
+
+module Blue = Create (val color (vec3 0.0 0.0 1.0))
+
+module Red = Create (val color (vec3 1.0 0.0 0.0))
 
 module White = Create (val color (vec3 1.0 1.0 1.0))
 

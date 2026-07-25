@@ -24,8 +24,7 @@
     tgls
     glfw-ocaml
     stb_image
-    yojson
-    redirect)
+    yojson)
  (tags
   ("add topics" "to describe" your project)))
 

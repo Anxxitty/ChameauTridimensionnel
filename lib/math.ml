@@ -22,9 +22,9 @@ type 'a vector = Vector1 of 'a vector1
                | Vector4 of 'a vector4
 
 type ('a, 'b) vector_kind = Vector1_kind of ('a, 'b) kind
-                         | Vector2_kind of ('a, 'b) kind
-                         | Vector3_kind of ('a, 'b) kind
-                         | Vector4_kind of ('a, 'b) kind
+                          | Vector2_kind of ('a, 'b) kind
+                          | Vector3_kind of ('a, 'b) kind
+                          | Vector4_kind of ('a, 'b) kind
 
 let vec4_op f (vec1 : float vector4) (vec2 : float vector4) = { x = f vec1.x vec2.x ; y = f vec1.y vec2.y ; z = f vec1.z vec2.z ; w = f vec1.w vec2.w }
 let vec3_op f (vec1 : float vector3) (vec2 : float vector3) = { x = f vec1.x vec2.x ; y = f vec1.y vec2.y ; z = f vec1.z vec2.z }
@@ -166,9 +166,18 @@ let base_of_rot ~(quat : quaternion) =
   let local_x = rotate_vec_with_quat x_axis quat in
   let local_y = rotate_vec_with_quat y_axis quat in
   (local_x, local_y, local_z)
-  
 
 let identity_quat = {r=1.0;i=0.0;j=0.0;k=0.0}
+
+let rot_quat_of_base ~(base : float vector3 * float vector3 * float vector3) =
+  let x,y,z = base in
+  let q1 = 
+    if x = x_axis then identity_quat else
+    if x = vec3_scalar_op ( *. ) (-1.0) x_axis then rotation_quat ~axis:z_axis ~angle:pi else
+    rotation_quat ~axis:(cross3f x_axis x) ~angle:(acos (dot3f (normalize3f x) x_axis)) in
+  if y = y_axis then q1 else
+  let q2_axis = normalize3f (cross3f y_axis y) in
+  multiply_quat (rotation_quat ~axis:q2_axis ~angle:(acos (dot3f (normalize3f (rotate_vec_with_quat y q1)) y_axis))) q1
 
 (*Matrices*)
 type 'a matrix4 = 'a vector4 * 'a vector4 * 'a vector4 * 'a vector4
@@ -206,14 +215,32 @@ let transpose ((a, b, c, d) : 'a matrix4) =
    {x=a.z; y=b.z; z=c.z; w=d.z},
    {x=a.w; y=b.w; z=c.w; w=d.w})
 
-(*let inverse4f mat = ??*)
-
 let identity_matrix4f = ((
   {x=1.0; y=0.0; z=0.0; w=0.0},
   {x=0.0; y=1.0; z=0.0; w=0.0},
   {x=0.0; y=0.0; z=1.0; w=0.0},
   {x=0.0; y=0.0; z=0.0; w=1.0}
 ) : float matrix4)
+
+let inverse4f (mat : float matrix4) =
+  let get_vec vec i = if i = 0 then vec.x else if i = 1 then vec.y else if i = 2 then vec.z else vec.w in
+  let get (a, b, c, d) i =
+    if i = 0 then a else if i = 1 then b else if i = 2 then c else d in
+  let set (a, b, c, d) i x =
+    if i = 0 then (x, b, c, d) else if i = 1 then (a, x, c, d) else if i = 2 then (a, b, x, d) else (a, b, c, x) in
+  let transvection mat receiver source coeff =
+    set mat receiver (vec4_op ( +. ) (get mat receiver) (vec4_scalar_op ( *. ) coeff (get mat source))) in
+  let scale mat receiver coeff =
+    set mat receiver (vec4_scalar_op ( *. ) coeff (get mat receiver)) in
+  
+  let rec inv mat inv_mat i = if i = 4 then inv_mat else
+    let rec cancel_col mat inv_mat j = if j = 4 then mat, inv_mat else
+      if j = i then cancel_col mat inv_mat (j+1) else
+      cancel_col (transvection mat j i ((-.(get_vec (get mat j) i))*.(1./.(get_vec (get mat i) i)))) (transvection inv_mat j i ((-.(get_vec (get mat j) i))*.(1./.(get_vec (get mat i) i)))) (j+1)
+    in let n_mat, n_inv_mat = cancel_col mat inv_mat 0 in
+    inv (scale n_mat i (1./.(get_vec (get mat i) i))) (scale n_inv_mat i (1./.(get_vec (get mat i) i))) (i+1)
+  in inv mat identity_matrix4f 0
+     
 
 let scale_matrix4f (scale_vector : float vector3) = ((
   {x=scale_vector.x; y=0.0; z=0.0; w=0.0},

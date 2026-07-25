@@ -75,10 +75,10 @@ class ['a, 'b] vertex_attribute ~(attribute_type : ('a, 'b) vector_kind) ~number
     (*returns the vertex_attribute of the i-th vertex*)
     method get_vertex_attribute ~index =
       match _dimension with
-        | Dim1 -> Vector1 { x = _data.{index} }
-        | Dim2 -> Vector2 { x = _data.{2*index}; y = _data.{2*index+1} }
-        | Dim3 -> Vector3 { x = _data.{3*index}; y = _data.{3*index+1}; z = _data.{3*index+2} }
-        | Dim4 -> Vector4 { x = _data.{4*index}; y = _data.{4*index+1}; z = _data.{4*index+2}; w = _data.{4*index+3} }
+        | Dim1 -> Vector1 (vec1 _data.{index})
+        | Dim2 -> Vector2 (vec2 _data.{2*index} _data.{2*index+1})
+        | Dim3 -> Vector3 (vec3 _data.{3*index} _data.{3*index+1} _data.{3*index+2})
+        | Dim4 -> Vector4 (vec4 _data.{4*index} _data.{4*index+1} _data.{4*index+2} _data.{4*index+3})
     (*allows for changing the vertex_attribute of the i-th vertex*)
     (*Note: the bigarray size is fixed: it is impossible to add a vertex to a vertex_attribute object*) 
     method set_vertex_attribute ~index ~value = 
@@ -277,15 +277,21 @@ class ['a, 'b, 'c] vertex_array ~kind ~(vertex_attributes : (('a, 'b) vertex_att
       _element_buffer#delete ()
   end
 
-class virtual drawable ~scene_coordinates ~local_rotation ~scale =
+type render_flag =
+  | Debug_display_local_bases of float
+  | Debug_display_normals of float
+  | Debug_wireframe
+
+class virtual drawable ~position ~rotation ~scale =
   object (self)
-    inherit movable ~scene_coordinates ~local_rotation ~scale
-    method virtual render : (window : window -> uniforms : uniform list -> unit)
+    inherit movable ~position ~rotation ~scale
+    method virtual render : (window : window -> uniforms : uniform list -> render_flags : render_flag list -> unit)
+    method virtual render_translucent : (window : window -> uniforms : uniform list -> camera_position : float vector3 -> render_flags : render_flag list -> unit)
   end
 
-class ['a, 'b, 'c] simple_drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(material : material) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+class ['a, 'b, 'c] simple_drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~(material : material) ~(position : float vector3) ~(rotation : quaternion) ~(scale : float vector3) =
   object (self)
-    inherit drawable ~scene_coordinates ~local_rotation ~scale
+    inherit drawable ~position ~rotation ~scale
     val mutable _vertex_array = vertex_array
     val mutable _material = material
     val _number_of_drawn_vertices = vertex_array#get_number_of_drawn_vertices
@@ -299,38 +305,56 @@ class ['a, 'b, 'c] simple_drawable ~(vertex_array : ('a, 'b, 'c) vertex_array) ~
     method set_material (material : material) =
       _material <- material
     (*other methods*)
-    method render ~(window : window) ~(uniforms : uniform list) =
+    method render ~(window : window) ~(uniforms : uniform list) ~(render_flags : render_flag list) =
       (*logger Debug_main_loop "drawable: Rendering a drawable.";*)
       _vertex_array#bind ();
       _material#prep_render ~uniforms;
       (*apply local rotation, scale and scene position*)
-      let model_matrix = translation_matrix4f _coordinates *::. scale_matrix4f _scale *::. (rotation_matrix4f_from_quat _rotation) in
+      let model_matrix = translation_matrix4f _position *::. scale_matrix4f _scale *::. (rotation_matrix4f_from_quat _rotation) in
+      let normal_matrix = transpose (inverse4f model_matrix) in
       _material#get_shader_program#use ();
       _material#get_shader_program#set_uniform (Matrix_uniform4f ("model_matrix", model_matrix));
+      _material#get_shader_program#set_uniform (Matrix_uniform4f ("normal_matrix", normal_matrix));
       Gl.draw_elements Gl.triangles _number_of_drawn_vertices (get_gl_type _vertex_array#get_element_buffer#get_kind) (`Offset 0);
-      _vertex_array#unbind ();
+      List.iter (fun r -> match r with
+        | Debug_display_normals normal_length -> (
+            normals_visualizer_shader#get#use ();
+            List.iter (fun u -> normals_visualizer_shader#get#set_uniform u) ([Vector_uniform1f ("normal_length", vec1 normal_length);Matrix_uniform4f ("model_matrix", model_matrix);Matrix_uniform4f ("normal_matrix", normal_matrix)]@uniforms);
+            Gl.draw_elements Gl.triangles _number_of_drawn_vertices (get_gl_type _vertex_array#get_element_buffer#get_kind) (`Offset 0))
+        | _ -> ()
+      ) render_flags;
+      _vertex_array#unbind ()
+    method render_translucent ~(window : window) ~(uniforms : uniform list) ~camera_position = self#render ~window ~uniforms
   end
 
-class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_array) named_array) ~(materials : material_array) ~(scene_coordinates : float vector3) ~(local_rotation : quaternion) ~(scale : float vector3) =
+class ['a, 'b, 'c] multi_mesh_drawable ~(vertex_arrays : (('a, 'b, 'c) vertex_array) named_array) ~(materials : material_array) ~(position : float vector3) ~(rotation : quaternion) ~(scale : float vector3) =
   let () = if vertex_arrays#get_nb_of_slots <> materials#get_nb_of_slots then logger Warning "multi_mesh_drawable: the number of slots in the material array does not match the number of sub-meshes in the drawable. This will probably lead to unwanted graphical effects." in
-  let vao_names = vertex_arrays#get_slot_names in
-  let rec gen_drawables vao_names = match vao_names with
-    | [] -> []
-    | a::q -> 
-        let vao = vertex_arrays#get_content ~name:a in
-        let mat = materials#get_content ~name:a in
-        (new simple_drawable ~vertex_array:vao ~material:mat ~scene_coordinates ~local_rotation ~scale)::(gen_drawables q) in
       
-  let drawables = gen_drawables vao_names in
+  let drawables = List.map (fun a -> 
+      let vao = vertex_arrays#get_content ~name:a in
+      let mat = materials#get_content ~name:a in
+      new simple_drawable ~vertex_array:vao ~material:mat ~position ~rotation ~scale)
+    vertex_arrays#get_slot_names in
+  
   object (self)
-    inherit drawable ~scene_coordinates ~local_rotation ~scale
+    inherit drawable ~position ~rotation ~scale
     val _drawables = drawables
     method get_sub_drawables = _drawables
-    method render ~(window : window) ~(uniforms : uniform list) =
-      let rec iter_render dr = match dr with
-        | [] -> ()
-        | a::q -> a#copy_movable (self :> movable); a#render ~window ~uniforms; iter_render q in (*moves the subdrawables along with the drawable, then renders them*)
-      iter_render _drawables
+    method render ~(window : window) ~(uniforms : uniform list) ~render_flags =
+      (*moves the subdrawables along with the drawable, then renders them*)
+      List.iter (fun a -> a#copy_movable (self :> movable); a#render ~window ~uniforms ~render_flags) _drawables
+    method render_translucent ~(window : window) ~(uniforms : uniform list) ~(camera_position : float vector3) ~render_flags =
+      let sorted_drawables = List.rev (List.sort (fun d1 d2 ->
+        let d1_cam = vec3_op ( -. ) camera_position d1#get_position in
+        let d2_cam = vec3_op ( -. ) camera_position d2#get_position in
+        let d1_squared_dist = dot3f d1_cam d1_cam in
+        let d2_squared_dist = dot3f d2_cam d2_cam in
+        if d1_squared_dist = d2_squared_dist then 0
+        else if d1_squared_dist > d2_squared_dist then 1
+        else -1)
+      _drawables) in
+      (*moves the subdrawables along with the drawable, then renders them*)
+      List.iter (fun a -> a#copy_movable (self :> movable); a#render ~window ~uniforms ~render_flags) sorted_drawables
   end
 
 let to_drawable a =

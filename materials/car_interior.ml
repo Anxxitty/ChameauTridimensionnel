@@ -7,6 +7,9 @@ type material_type = textured_phong_material
 
 let material = make_material 
   ~init:(fun () -> 
-    let car_interior_texture = new texture ~path:"assets/textures/car_interior.jpeg" in
-    new textured_phong_material ~textures:[car_interior_texture] ~alpha:1.0 ~ambient_coeff:0.4 ~specular_expo:8 ~light_position:(vec3 0.0 0.0 0.0) ~light_color:(vec3 1.0 1.0 1.0) ~light_intensity:10.0)
+    make_textured_phong_material_from_paths
+      ~ambient:"assets/textures/car_interior.jpeg"
+      ~diffuse:"assets/textures/car_interior.jpeg"
+      ~shininess:8.0
+      ())
   ~delete:(fun m -> List.iter (fun t -> t#delete ()) m#get_textures)

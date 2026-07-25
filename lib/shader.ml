@@ -3,6 +3,7 @@ open Logger
 open Math
 open Bigarray
 open Data_structures
+open Settings
 
 type uniform = Vector_uniform1f of string * (float vector1)
              | Vector_uniform1i of string * (int vector1)
@@ -46,7 +47,8 @@ class shader ~(shader_type : int) ~(shader_source_path : string) =
   in 
   let () = 
     (*compile shader*)
-    Gl.shader_source shader_id shader_source;
+    (*apply engine settings*)
+    Gl.shader_source shader_id (replace_string_with_settings shader_source);
     Gl.compile_shader shader_id;
     (*check compilation success*)
     if get_first_int (Gl.get_shaderiv shader_id Gl.compile_status) <> Gl.true_ then
@@ -69,16 +71,18 @@ class shader ~(shader_type : int) ~(shader_source_path : string) =
       Gl.delete_shader id
   end
 
-class shader_program ~(vertex_shader : shader) ~(fragment_shader : shader) =
+class shader_program ~(vertex_shader : shader) ~(fragment_shader : shader) ?(geometry_shader : shader option) () =
   (*constructor*)
   let program_id = Gl.create_program () in
   let () =
     (*link shader program*)
     Gl.attach_shader program_id vertex_shader#get_id;
     Gl.attach_shader program_id fragment_shader#get_id;
+    Option.iter (fun s -> Gl.attach_shader program_id s#get_id) geometry_shader;
     Gl.link_program program_id;
     vertex_shader#delete ();
     fragment_shader#delete ();
+    Option.iter (fun s -> s#delete ()) geometry_shader;
     (*check for linking errors*)
     if get_first_int (Gl.get_programiv program_id Gl.link_status) <> Gl.true_ then
       let len = get_first_int (Gl.get_programiv program_id Gl.info_log_length) in
@@ -132,9 +136,25 @@ class shader_program ~(vertex_shader : shader) ~(fragment_shader : shader) =
       Gl.delete_program id
   end
 
-let default_shader = new default ~init:(fun x -> (
-  let def_vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/default_vert.glsl" in
-  let def_frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/default_frag.glsl" in
-  let def_shader = new shader_program ~vertex_shader:def_vert ~fragment_shader:def_frag in
+let default_shader = new default ~init:(fun () -> (
+  let def_vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/shaders/default_shader/default_shader.vert" in
+  let def_frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/shaders/default_shader/default_shader.frag" in
+  let def_shader = new shader_program ~vertex_shader:def_vert ~fragment_shader:def_frag () in
   def_shader
 )) ~delete:(fun x -> x#delete ())
+
+let local_bases_visualizer_shader = new default ~init:(fun () ->
+  let vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/debug/shaders/local_bases_visualizer/local_bases_visualizer.vert" in
+  let geom = new shader ~shader_type:Gl.geometry_shader ~shader_source_path:"defaults/debug/shaders/local_bases_visualizer/local_bases_visualizer.geom" in
+  let frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/debug/shaders/local_bases_visualizer/local_bases_visualizer.frag" in
+  let shader_prog = new shader_program ~vertex_shader:vert ~fragment_shader:frag ~geometry_shader:geom () in
+  shader_prog
+) ~delete:(fun x -> x#delete ())
+
+let normals_visualizer_shader = new default ~init:(fun () ->
+  let vert = new shader ~shader_type:Gl.vertex_shader ~shader_source_path:"defaults/debug/shaders/normals_visualizer/normals_visualizer.vert" in
+  let geom = new shader ~shader_type:Gl.geometry_shader ~shader_source_path:"defaults/debug/shaders/normals_visualizer/normals_visualizer.geom" in
+  let frag = new shader ~shader_type:Gl.fragment_shader ~shader_source_path:"defaults/debug/shaders/normals_visualizer/normals_visualizer.frag" in
+  let shader_prog = new shader_program ~vertex_shader:vert ~fragment_shader:frag ~geometry_shader:geom () in
+  shader_prog
+) ~delete:(fun x -> x#delete ())

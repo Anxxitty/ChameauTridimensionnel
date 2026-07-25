@@ -16,7 +16,6 @@ depends: [
   "glfw-ocaml"
   "stb_image"
   "yojson"
-  "redirect"
   "odoc" {with-doc}
 ]
 build: [

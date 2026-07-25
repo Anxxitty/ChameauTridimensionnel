@@ -134,4 +134,4 @@ class ['a] persistent ~(handle : string) ~(to_string : 'a -> string) ~(from_stri
         logger Warning ("persistent: "^Printexc.to_string e)
   end
 
-let get_in_json ~key ~json = Basic.Util.to_string (Basic.Util.member key json)  
+let get_in_json ~key ~json = Basic.Util.to_string (Basic.Util.member key json)
