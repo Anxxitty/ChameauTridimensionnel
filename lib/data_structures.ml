@@ -118,9 +118,9 @@ class ['a] persistent ~(handle : string) ~(to_string : 'a -> string) ~(from_stri
     val _handle = handle  
     method get_handle =
       _handle
-    method load (save : in_channel) =
+    method load (save : string) =
       try
-        let var = from_string (input_line save) in
+        let var = from_string save in
         write_target var
       with e ->
         logger Warning ("persistent: failed to load persistent \""^_handle^"\". See error below:");

@@ -44,7 +44,7 @@ class json_save ~(path : string) =
         List.iter (fun (module P : Persistent) ->(
           try
             let var = to_string (Util.member P.persistent#get_handle json) in
-            with_channel_from_string var P.persistent#load
+            P.persistent#load var
           with 
             | Util.Type_error (e, t) -> logger Warning ("json_save: failed to load persistent with handle \""^P.persistent#get_handle^"\" because of corrupted json save. Exception: "^e)
             | e -> logger Warning ("json_save: failed to load persistent with handle \""^P.persistent#get_handle^"\". Exception: "^Printexc.to_string e)
