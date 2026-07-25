@@ -9,8 +9,9 @@ let material = make_material
   ~init:(fun () -> 
     make_textured_phong_material_from_paths
       ~diffuse:"assets/textures/car_exterior.png"
-      ~ambient:"assets/textures/car_exterior.png"
       ~specular:(Some "assets/textures/car_exterior_specular.png")
+      ~emission:(Some "assets/textures/car_exterior_emission.png")
+      ~emission_coeff:1.5
       ~shininess:128.0 
       ())
   ~delete:(fun m -> List.iter (fun t -> t#delete ()) m#get_textures)

@@ -141,31 +141,35 @@ let phong_shader = new default ~init:(fun x ->(
 )) ~delete:(fun x -> x#delete ())
 
 let default_specular = new default ~init:(fun () -> new texture ~path:"defaults/textures/default_specular.png") ~delete:(fun t -> t#delete ())
+let default_emission = new default ~init:(fun () -> new texture ~path:"defaults/textures/default_emission.png") ~delete:(fun t -> t#delete ())
 let default_normal_map = new default ~init:(fun () -> new texture ~path:"defaults/textures/default_normal_map.png") ~delete:(fun t -> t#delete ())
 
-class textured_phong_material ~(ambient : texture) ~(diffuse : texture) ?(specular = default_specular#get) ?(normal_map = default_normal_map#get) ~(shininess : float) () =
+class textured_phong_material ~(diffuse : texture) ?(specular = default_specular#get) ?(emission = default_emission#get) ?(emission_coeff = 1.0) ?(normal_map = default_normal_map#get) ~(shininess : float) () =
   object (self)
     inherit generic_material ~shader_program:(phong_shader#get) as super
-    val mutable _ambient = ambient
     val mutable _diffuse = diffuse
     val mutable _specular = specular
+    val mutable _emission = emission
+    val mutable _emission_coeff = emission_coeff
     val mutable _normal_map = normal_map
     val mutable _shininess = shininess
     (*getters and setters*)
     method get_textures =
-      [_ambient; _diffuse; _specular; normal_map]
-    method get_ambient =
-      _ambient
+      [_diffuse; _specular; _emission; normal_map]
     method get_shininess =
       _shininess
     method get_specular =
       _specular
+    method get_emission =
+      _emission
     method get_diffuse =
       _diffuse
     method get_normal_map =
       _normal_map
-    method set_ambient x =
-      _ambient <- x
+    method get_emission_coeff =
+      _emission_coeff
+    method set_emission x =
+      _emission <- x
     method set_diffuse x =
       _diffuse <- x
     method set_normal_map x =
@@ -174,6 +178,8 @@ class textured_phong_material ~(ambient : texture) ~(diffuse : texture) ?(specul
       _specular <- x
     method set_shininess x =
       _shininess <- x
+    method set_emission_coeff x =
+      _emission_coeff <- x
     
     method! prep_render ~uniforms =
       _shader_program#use ();
@@ -182,12 +188,13 @@ class textured_phong_material ~(ambient : texture) ~(diffuse : texture) ?(specul
         tex#bind ();
         _shader_program#set_uniform1i ~name ~value:(vec1 i)
       )) [
-        (_ambient, "material.ambient");
+        (_emission, "material.emission");
         (_diffuse, "material.diffuse");
         (_specular, "material.specular");
         (_normal_map, "material.normal_map")
       ];
       _shader_program#set_uniform1f ~name:"material.shininess" ~value:(vec1 _shininess);
+      _shader_program#set_uniform1f ~name:"material.emission_coeff" ~value:(vec1 _emission_coeff);
       super#prep_render ~uniforms    
   end
 
@@ -227,10 +234,9 @@ let make_single_material_array ~slot_names ~material =
   let n = List.length slot_names in
   new material_array ~nb_of_slots:n ~slot_names ~materials:(List.init n (fun x -> material)) ()
 
-let make_textured_phong_material_from_paths ~ambient ~diffuse ?(specular = None) ?(normal_map = None) ~shininess =
+let make_textured_phong_material_from_paths ~diffuse ?(specular = None) ?(emission = None) ?(normal_map = None) =
   new textured_phong_material
-    ~ambient:(new texture ~path:ambient)
     ~diffuse:(new texture ~path:diffuse)
-    ~specular:(match specular with | Some a -> new texture ~path:a | None -> default_specular#get)
-    ~normal_map:(match normal_map with | Some a -> new texture ~path:a | None -> default_normal_map#get)
-    ~shininess
+    ~specular:(Option.fold specular ~some:(fun a -> new texture ~path:a) ~none:default_specular#get)
+    ~emission:(Option.fold emission ~some:(fun a -> new texture ~path:a) ~none:default_emission#get)
+    ~normal_map:(Option.fold normal_map ~some:(fun a -> new texture ~path:a) ~none:default_normal_map#get)

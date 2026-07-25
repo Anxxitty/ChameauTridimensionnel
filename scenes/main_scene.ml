@@ -114,7 +114,7 @@ let scene = make_scene ~scene_init:(fun () -> (module struct
     new input_handler ~key:GLFW.O ~press_callback:(fun () -> light#set_diffuse (vec3 1.0 1.0 1.0)) ~release_callback:(fun () -> ());
     new input_handler ~key:GLFW.L ~press_callback:(fun () -> light#set_diffuse (vec3 1.0 0.8 0.7)) ~release_callback:(fun () -> ());
     new input_handler ~key:GLFW.N ~press_callback:(fun () -> light#set_diffuse (vec3 0.7 1.0 0.8)) ~release_callback:(fun () -> ());
-    new toggle_input_handler ~key:GLFW.T ~toggle_on_callback:(fun () -> torch#set_direction y_axis) ~toggle_off_callback:(fun () -> torch#set_direction (vec3_scalar_op ( *. ) (-1.0) z_axis));
+    new toggle_input_handler ~key:GLFW.T ~toggle_on_callback:(fun () -> Car_exterior.material#get#set_emission_coeff 0.0) ~toggle_off_callback:(fun () -> Car_exterior.material#get#set_emission_coeff 1.5);
   ]
 
   let mouse_sensitivity = 0.001

@@ -8,7 +8,6 @@ type material_type = textured_phong_material
 let material = make_material 
   ~init:(fun () -> 
     make_textured_phong_material_from_paths
-      ~ambient:"assets/textures/car_exterior.png"
       ~diffuse:"assets/textures/car_exterior.png"
       ~specular:(Some "assets/textures/car_exterior_specular.png")
       ~shininess:1024.0

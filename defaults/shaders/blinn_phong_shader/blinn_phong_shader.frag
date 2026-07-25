@@ -32,10 +32,11 @@ struct Spot_Light {
 };
 
 struct Material {
-    sampler2D ambient;
     sampler2D diffuse;
     sampler2D specular;
+    sampler2D emission;
     float shininess;
+    float emission_coeff;
 };
 
 uniform Material material;
@@ -56,7 +57,7 @@ uniform Spot_Light spot_lights[ENGINE_SETTINGS_MAX_NUMBER_OF_LIGHTS];
 out vec4 fragment_color;
 
 vec3 ambient(vec3 light_ambient) {
-    return light_ambient * vec3(texture(material.ambient, vertex.texture_coordinates));
+    return light_ambient * vec3(texture(material.diffuse, vertex.texture_coordinates));
 }
 
 vec3 diffuse(vec3 light_direction, vec3 light_diffuse) {
@@ -67,6 +68,10 @@ vec3 specular(vec3 light_direction, vec3 light_specular) {
     vec3 camera_direction = normalize(-vertex.fragment_position);
     vec3 halfway_vector = normalize(light_direction + camera_direction);
     return vec3(texture(material.specular, vertex.texture_coordinates)) * light_specular * pow(max(0.0, dot(halfway_vector, vertex.normal)), float(material.shininess));
+}
+
+vec3 emission() {
+    return vec3(texture(material.emission, vertex.texture_coordinates));
 }
 
 void main() {
@@ -105,5 +110,6 @@ void main() {
             );
         }
     }
+    result += material.emission_coeff * emission ();
     fragment_color = vec4(result, texture(material.diffuse, vertex.texture_coordinates).a);
 }

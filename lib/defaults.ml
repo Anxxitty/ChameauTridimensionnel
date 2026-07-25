@@ -8,6 +8,7 @@ let initialize_defaults () =
   default_texture#init ();
   default_specular#init ();
   default_normal_map#init ();
+  default_emission#init ();
   local_bases_visualizer_shader#init ();
   normals_visualizer_shader#init ()
 
@@ -18,5 +19,6 @@ let delete_defaults () =
   default_texture#delete ();
   default_specular#delete ();
   default_normal_map#delete ();
+  default_emission#delete ();
   local_bases_visualizer_shader#delete ();
   normals_visualizer_shader#delete ()

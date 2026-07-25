@@ -62,7 +62,7 @@ let () =
   window#register_render_callback render;
   window#register_animation_tick_callback animation_tick;
   window#register_tick_callback tick;
-  window#set_fps 60;
+  window#set_fps 600000000;
   window#set_tps 20;
   window#set_animation_tps 60;
   window#register_input_handler (new input_handler ~key:GLFW.Escape ~press_callback:(window#show_cursor) ~release_callback:(fun () -> ()));
@@ -72,11 +72,10 @@ let () =
   window#register_input_handler (new input_handler ~key:GLFW.Left ~press_callback:(fun () -> camera#rotate_roll ~angle:0.01) ~release_callback:(fun () -> ()));
   window#register_input_handler (new input_handler ~key:GLFW.Right ~press_callback:(fun () -> camera#rotate_roll ~angle:(-0.01)) ~release_callback:(fun () -> ()));
   window#register_input_handler (new input_handler ~key:GLFW.R ~press_callback:(fun () -> (
-    let roll = roll_of_rot_quat camera#get_rotation in
-    let camera_z = rotate_vec_with_quat z_axis camera#get_rotation in
-    let roll_sign = dot3f camera_z z_axis in
-    if roll_sign > 0. then camera#rotate_roll ~angle:(-.roll)
-    else camera#rotate_roll ~angle:(pi+.roll)
+    let z = normalize3f (camera#get_local_z_axis) in
+    let x = normalize3f (cross3f y_axis z) in
+    let y = normalize3f (cross3f z x) in
+    camera#set_rotation (rot_quat_of_base ~base:(x,y,z))
   )) ~release_callback:(fun () -> ()));
 
   (*Main loop*)
